@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1920 1080" width="1920" height="1080">
+<title>Honey Dew Beach Camp — logo</title>
+<defs>
+
+<clipPath id="badge-clip"><circle cx="960" cy="540" r="288"></circle></clipPath>
+<path id="frond" d="M 0 0 C 58 -46 128 -64 200 -46 C 172 -24 152 -12 138 -4 C 122 -14 104 -16 92 -10 C 76 -20 56 -22 40 -12 C 26 -20 12 -18 0 0 Z"></path>
+<g id="crown">
+  <circle cx="-26" cy="26" r="13" fill="#c9973f" stroke="#12595c" stroke-width="3"></circle>
+  <circle cx="0" cy="26" r="13" fill="#c9973f" stroke="#12595c" stroke-width="3"></circle>
+  <circle cx="26" cy="26" r="13" fill="#c9973f" stroke="#12595c" stroke-width="3"></circle>
+  <g transform="rotate(-173) scale(0.76)"><use xlink:href="#frond" fill="#2f6d47" stroke="#f6efdd" stroke-width="7" stroke-linejoin="round"></use></g>
+  <g transform="rotate(-143) scale(0.96)"><use xlink:href="#frond" fill="#4e9a5b" stroke="#f6efdd" stroke-width="7" stroke-linejoin="round"></use></g>
+  <g transform="rotate(-116) scale(0.857)"><use xlink:href="#frond" fill="#2f6d47" stroke="#f6efdd" stroke-width="7" stroke-linejoin="round"></use></g>
+  <g transform="rotate(-88) scale(0.9)"><use xlink:href="#frond" fill="#4e9a5b" stroke="#f6efdd" stroke-width="7" stroke-linejoin="round"></use></g>
+  <g transform="rotate(-57) scale(0.806)"><use xlink:href="#frond" fill="#2f6d47" stroke="#f6efdd" stroke-width="7" stroke-linejoin="round"></use></g>
+  <g transform="rotate(-23) scale(1.02)"><use xlink:href="#frond" fill="#4e9a5b" stroke="#f6efdd" stroke-width="7" stroke-linejoin="round"></use></g>
+  <g transform="rotate(9) scale(0.76)"><use xlink:href="#frond" fill="#2f6d47" stroke="#f6efdd" stroke-width="7" stroke-linejoin="round"></use></g>
+</g>
+<path id="arc-hi" d="M 960 540 m -326 0 a 326 326 0 0 1 652 0" fill="none"></path>
+</defs>
+
+<rect width="1920" height="1080" fill="#0e4a4d"></rect>
+
+<g id="mark" transform="translate(0 -46)">
+  <circle cx="960" cy="540" r="288" fill="#12595c"></circle>
+  <g clip-path="url(#badge-clip)">
+    <circle cx="960" cy="560" r="196" fill="#dbe9a4"></circle>
+    <circle cx="960" cy="560" r="196" fill="none" stroke="#c9973f" stroke-width="4" opacity="0.5"></circle>
+
+    <g opacity="0.9" fill="none" stroke="#f6efdd" stroke-width="5" stroke-linecap="round">
+      <path d="M 1104 372 Q 1113 352 1122 372 Q 1131 352 1140 372"></path>
+      <path d="M 947 406 Q 956 398 965 406 Q 974 398 983 406"></path>
+    </g>
+
+    <path d="M -109 700 q 130 -46 260 0 q 130 46 260 0 q 130 -46 260 0 q 130 46 260 0 q 130 -46 260 0 q 130 46 260 0 q 130 -46 260 0 q 130 46 260 0 L 2160 1080 L -120 1080 Z" fill="#5fc0b4"></path>
+    <path d="M -131 742 q 130 -46 260 0 q 130 46 260 0 q 130 -46 260 0 q 130 46 260 0 q 130 -46 260 0 q 130 46 260 0 q 130 -46 260 0 q 130 46 260 0 L 2160 1080 L -120 1080 Z" fill="#5fc0b4" opacity="0.7"></path>
+    <path d="M -109 784 q 130 -46 260 0 q 130 46 260 0 q 130 -46 260 0 q 130 46 260 0 q 130 -46 260 0 q 130 46 260 0 q 130 -46 260 0 q 130 46 260 0 L 2160 1080 L -120 1080 Z" fill="#e3d6b6"></path>
+
+    <g id="cabin">
+      <rect x="886" y="742" width="148" height="54" fill="#12595c" stroke="#f6efdd" stroke-width="9"></rect>
+      <path d="M 872 742 L 960 684 L 1048 742" fill="#12595c" stroke="#f6efdd" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"></path>
+      <rect x="945" y="756" width="30" height="40" fill="#c9973f" stroke="#f6efdd" stroke-width="7"></rect>
+      <rect x="898" y="754" width="26" height="24" fill="#dbe9a4" stroke="#f6efdd" stroke-width="6"></rect>
+      <rect x="996" y="754" width="26" height="24" fill="#dbe9a4" stroke="#f6efdd" stroke-width="6"></rect>
+      <path d="M 1002 716 L 1002 666 L 1024 666 L 1024 730" fill="#12595c" stroke="#f6efdd" stroke-width="8" stroke-linejoin="round"></path>
+    </g>
+
+    <g id="palm-left">
+      <path d="M 856 880 C 841 760 814 640 796 550" fill="none" stroke="#c9973f" stroke-width="22" stroke-linecap="round" opacity="0.85"></path>
+      <path d="M 856 880 C 841 760 814 640 796 550" fill="none" stroke="#f6efdd" stroke-width="12" stroke-linecap="round"></path>
+      <g transform="translate(796 550) scale(-0.88 0.88)"><use xlink:href="#crown"></use></g>
+    </g>
+    <g id="palm-right">
+      <path d="M 1064 880 C 1079 760 1106 640 1124 550" fill="none" stroke="#c9973f" stroke-width="22" stroke-linecap="round" opacity="0.85"></path>
+      <path d="M 1064 880 C 1079 760 1106 640 1124 550" fill="none" stroke="#f6efdd" stroke-width="12" stroke-linecap="round"></path>
+      <g transform="translate(1124 550) scale(0.88 0.88)"><use xlink:href="#crown"></use></g>
+    </g>
+
+    <g id="hammock">
+      <path d="M 812 576 L 810 664" fill="none" stroke="#f6efdd" stroke-width="7" stroke-linecap="round"></path>
+      <path d="M 1108 576 L 1110 664" fill="none" stroke="#f6efdd" stroke-width="7" stroke-linecap="round"></path>
+      <path d="M 810 664 Q 960 769 1110 664 Q 960 722 810 664 Z" fill="#f6efdd" stroke="#12595c" stroke-width="5" stroke-linejoin="round"></path>
+      <g fill="none" stroke="#12595c" stroke-width="3.5" opacity="0.55">
+        <path d="M 824 666 Q 960 738 1096 666"></path>
+        <path d="M 824 666 Q 960 748 1096 666"></path>
+        <path d="M 824 666 Q 960 758 1096 666"></path>
+      </g>
+      <path d="M 810 648 L 810 680 M 1110 648 L 1110 680" stroke="#f6efdd" stroke-width="9" stroke-linecap="round"></path>
+    </g>
+  </g>
+
+  <circle cx="960" cy="540" r="400" fill="none" stroke="#c9973f" stroke-width="9"></circle>
+  <circle cx="960" cy="540" r="382" fill="none" stroke="#c9973f" stroke-width="3" opacity="0.75"></circle>
+  <circle cx="960" cy="540" r="288" fill="none" stroke="#f6efdd" stroke-width="5"></circle>
+  <text font-family="Jost, sans-serif" font-size="30" font-weight="500" letter-spacing="7.2" fill="#f6efdd">
+    <textPath xlink:href="#arc-hi" startOffset="50%" text-anchor="middle">HONEY DEW BEACH CAMP</textPath>
+  </text>
+  <circle cx="625" cy="540" r="8" fill="#c9973f"></circle>
+  <circle cx="1295" cy="540" r="8" fill="#c9973f"></circle>
+</g>
+
+<g id="wordmark">
+  <text x="960" y="1002" text-anchor="middle" font-family="Jost, sans-serif" font-size="64" font-weight="500" letter-spacing="15" fill="#f6efdd">HONEY DEW</text>
+  <path d="M 690 1042 L 838 1042 M 1082 1042 L 1230 1042" stroke="#c9973f" stroke-width="3"></path>
+  <text x="960" y="1054" text-anchor="middle" font-family="Cormorant Garamond, serif" font-style="italic" font-size="44" fill="#dbe9a4">Beach Camp</text>
+</g>
+</svg>

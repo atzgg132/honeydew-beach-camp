@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root {
+  --lagoon-900: #0e4a4d;
+  --lagoon-800: #12595c;
+  --cream: #f6efdd;
+  --cream-raised: #fbf6ea;
+  --honey: #c9973f;
+  --sand: #e3d6b6;
+  --mist: #dbe9a4;
+  --water: #5fc0b4;
+  --ink: #0e4a4d;
+  --ink-soft: #12595c;
+  --line: color-mix(in srgb, var(--lagoon-900) 14%, var(--cream));
+  --danger: #8b3a2f;
+  --radius: 6px;
+  --header: 4.5rem;
+}
+
+@theme inline {
+  --color-lagoon-900: var(--lagoon-900);
+  --color-lagoon-800: var(--lagoon-800);
+  --color-cream: var(--cream);
+  --color-cream-raised: var(--cream-raised);
+  --color-honey: var(--honey);
+  --color-sand: var(--sand);
+  --color-mist: var(--mist);
+  --color-water: var(--water);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-line: var(--line);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-outfit);
+  --font-serif: var(--font-cormorant);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+}
+
+html {
+  background: var(--cream);
+  color: var(--ink);
+}
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  min-height: 100dvh;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--honey) 45%, var(--cream));
+  color: var(--lagoon-900);
+}
+
+:focus-visible {
+  outline: 2px solid var(--honey);
+  outline-offset: 3px;
+}
+
+.font-serif-italic {
+  font-family: var(--font-cormorant), ui-serif, Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.scrim-hero {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(14 74 77 / 0.28) 0%,
+      rgb(14 74 77 / 0.08) 32%,
+      rgb(14 74 77 / 0.18) 58%,
+      rgb(14 74 77 / 0.72) 100%
+    );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .motion-safe {
+    animation: none !important;
+    transition: none !important;
+  }
+}
