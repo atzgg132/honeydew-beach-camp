@@ -58,6 +58,27 @@ body {
   outline-offset: 3px;
 }
 
+#booking-desk input[type="date"] {
+  color-scheme: light;
+}
+
+#booking-desk input[type="date"]::-webkit-datetime-edit,
+#booking-desk input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+#booking-desk input[type="date"]::-webkit-datetime-edit-text,
+#booking-desk input[type="date"]::-webkit-datetime-edit-month-field,
+#booking-desk input[type="date"]::-webkit-datetime-edit-day-field,
+#booking-desk input[type="date"]::-webkit-datetime-edit-year-field {
+  padding: 0;
+}
+
+#booking-desk input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  height: 1rem;
+  margin: 0;
+  opacity: 0.65;
+  width: 1rem;
+}
+
 .font-serif-italic {
   font-family: var(--font-cormorant), ui-serif, Georgia, serif;
   font-style: italic;

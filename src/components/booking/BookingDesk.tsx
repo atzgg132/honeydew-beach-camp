@@ -52,20 +52,20 @@ export function BookingDesk({
   }
 
   const fieldClass =
-    "h-11 w-full bg-transparent text-base text-inherit outline-none sm:h-12";
+    "h-7 w-full min-w-0 bg-transparent text-base leading-7 text-ink outline-none";
+  const fieldShell =
+    "flex min-h-[4.75rem] flex-col justify-center gap-1 border-b border-line px-4 py-3 md:border-b-0 md:border-r md:border-line";
 
   return (
     <form
       id="booking-desk"
       onSubmit={submit}
       className={cn(
-        "grid gap-3 rounded-[6px] p-3 md:grid-cols-[1.1fr_1.1fr_1.2fr_auto] md:items-end md:gap-0 md:p-0",
-        tone === "cream"
-          ? "border border-line bg-cream text-ink md:border-0 md:bg-cream"
-          : "bg-cream text-ink",
+        "grid rounded-[6px] bg-cream text-ink md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_auto] md:items-stretch",
+        tone === "cream" ? "border border-line md:border-0" : "",
       )}
     >
-      <label className="flex flex-col gap-1 border-b border-line px-4 py-2.5 sm:py-3 md:border-b-0 md:border-r">
+      <label className={fieldShell}>
         <span className="text-xs font-medium uppercase tracking-[0.14em] text-ink/60">
           Check-in
         </span>
@@ -82,7 +82,7 @@ export function BookingDesk({
           required
         />
       </label>
-      <label className="flex flex-col gap-1 border-b border-line px-4 py-2.5 sm:py-3 md:border-b-0 md:border-r">
+      <label className={fieldShell}>
         <span className="text-xs font-medium uppercase tracking-[0.14em] text-ink/60">
           Check-out
         </span>
@@ -95,17 +95,17 @@ export function BookingDesk({
           required
         />
       </label>
-      <div className="relative border-b border-line px-4 py-2.5 sm:py-3 md:border-b-0 md:border-r">
+      <div className="relative flex md:border-r md:border-line">
         <button
           type="button"
-          className="flex w-full min-h-11 flex-col items-start gap-1 text-left"
+          className={cn(fieldShell, "w-full border-b text-left md:border-b-0 md:border-r-0")}
           onClick={() => setOpenGuests((value) => !value)}
           aria-expanded={openGuests}
         >
           <span className="text-xs font-medium uppercase tracking-[0.14em] text-ink/60">
             Guests
           </span>
-          <span className="text-base">{guestLabel}</span>
+          <span className="flex h-7 items-center text-base leading-7">{guestLabel}</span>
         </button>
         {openGuests ? (
           <div className="absolute bottom-full left-0 right-0 z-20 mb-2 rounded-[6px] border border-line bg-cream p-4 shadow-[0_12px_40px_rgb(14_74_77/0.12)] md:bottom-auto md:top-full md:mb-0 md:mt-2">
@@ -114,8 +114,8 @@ export function BookingDesk({
           </div>
         ) : null}
       </div>
-      <div className="p-2 md:p-2">
-        <Button type="submit" className="w-full min-h-11 sm:min-h-12 md:min-w-36">
+      <div className="flex items-stretch p-3 md:p-2">
+        <Button type="submit" className="h-full min-h-12 w-full md:min-w-36">
           Search
         </Button>
       </div>
