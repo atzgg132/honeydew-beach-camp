@@ -8,7 +8,10 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --project integration",
     "test:unit": "vitest run src/**/*.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -53,5 +56,8 @@
   },
   "overrides": {
     "deepmerge-ts": "8.0.2"
+  },
+  "engines": {
+    "node": ">=20.11"
   }
 }
