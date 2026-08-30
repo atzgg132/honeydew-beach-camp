@@ -18,7 +18,7 @@ export function PriceBreakdown({
   const cancelled = recorded?.status === "cancelled";
   const advance = recorded ? recorded.advancePaid : snapshot.advance;
   const balance = recorded ? recorded.outstanding : snapshot.balance;
-  const advanceLabel = recorded ? "Advance paid" : `Advance (${snapshot.advancePercent}% in this demonstration)`;
+  const advanceLabel = recorded ? "Advance paid" : `Advance (${snapshot.advancePercent}%)`;
   const balanceLabel = cancelled ? "Outstanding" : "Balance at the hotel";
 
   return (

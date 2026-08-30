@@ -1,93 +1,75 @@
 # Honey Dew Beach Camp
 
-Customer-facing website and booking journey for Honey Dew Beach Camp, Mousuni Island.
+Customer website and server-authoritative booking application for Honey Dew Beach Camp, Mousuni Island.
 
-Milestone 1 is frontend only. Bookings live in the browser (`localStorage`). Nothing is sent to the hotel. No payment is taken.
+## Architecture
 
-## Setup
+- Next.js 16 App Router and Node.js Route Handlers
+- Prisma 7 with PostgreSQL
+- Physical-room reservations for all holds, confirmed stays, and future room blocks
+- PostgreSQL GiST exclusion constraint as the final double-booking guard
+- Integer paise pricing, basis-point percentages, and immutable tariff/policy revisions
+- Signed 10-minute quotes and transactionally allocated 15-minute holds
+- Opaque checkout and Manage Booking sessions with HttpOnly cookies and CSRF protection
+- Development-only payment provider; production checkout remains unavailable until a real provider is configured
+
+Browser calculations are responsive previews only. PostgreSQL and the server booking domain own availability, allocation, price, payment state, outstanding balances, changes, and cancellation.
+
+## Local setup
+
+1. Copy `.env.example` to `.env.local` and replace every placeholder secret.
+2. Provide a PostgreSQL database that supports `btree_gist`.
+3. Install, migrate, seed, and start:
 
 ```bash
 npm install
-npm run optimize:media
+npm run db:generate
+npm run db:migrate:deploy
+npm run db:seed
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-`optimize:media` reads originals in `assets/` and writes web derivatives to `public/`. Originals are never modified.
+`ENABLE_DEV_PAYMENT=true` enables the local payment simulator only when `NODE_ENV` is not `production`.
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Development server |
-| `npm run build` | Production build |
-| `npm start` | Serve the production build |
-| `npm run lint` | ESLint |
-| `npm test` | Vitest domain math |
-| `npm run test:e2e` | Playwright flows |
-| `npx tsc --noEmit` | Typecheck |
+| `npm run dev` | Start the development server |
+| `npm run build` | Create a production build |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run Vitest unit tests |
+| `npm run test:e2e` | Run the main Playwright flow |
+| `npx tsc --noEmit` | Type-check |
+| `npm run db:validate` | Validate the Prisma schema |
+| `npm run db:migrate` | Create/apply a development migration |
+| `npm run db:migrate:deploy` | Apply versioned migrations in release environments |
+| `npm run db:seed` | Upsert operational configuration and inventory |
 
-## Demonstration bookings
+## Database and releases
 
-On `/manage-booking`, or use:
+Use a pooled `DATABASE_URL` for application traffic and a direct/session `DIRECT_URL` for migrations and seeds. Keep the Vercel function and database regions aligned. Production, preview, and test must use separate databases or Neon branches.
 
-| Reference | Phone | What it shows |
-|---|---|---|
-| `HD-DEMO-8841` | `9876543210` | 1 guest, Single-Bed Non-AC, +45 days. 2-head rate for one person. AC upgrade. 0% cancel slab. |
-| `HD-DEMO-5520` | `9876543210` | 4 guests in two Single-Bed rooms, +5 days. Upgrade one room. 30% cancel slab. |
-| `HD-DEMO-1033` | `9876543210` | Already cancelled. |
+Release order:
 
-Clearing site data re-seeds these on the next visit. Older V1 bookings in localStorage are ignored (`honeydew.demo.bookings.v2`).
+1. Back up the database and verify the restore procedure periodically.
+2. Run `npm run db:migrate:deploy` once from a serialized release job.
+3. Deploy the application.
+4. Smoke-test availability, quote creation, a non-production payment flow, Manage Booking verification, and hold expiry.
 
-## Booking a new stay
+Never use `prisma db push` in production. Custom checks, partial indexes, and the reservation exclusion constraint live in the versioned migration under `prisma/migrations/`.
 
-1. Dates
-2. Guests (1 or more; rooms are combined as needed)
-3. Room setup (for example 4 guests: one Double-Bed, or two Single-Bed rooms)
-4. AC or Non-AC per room
-5. Contact details
-6. Review (room-by-room folio; 30% advance in this demonstration)
-7. Demonstration advance
-8. `/book/confirmed`
+## Payment activation
 
-Tariffs are **per person, per night**, calculated per room, and **include meals**. One guest in a Single-Bed Room uses the two-person rate for one person (₹1,499 AC / ₹1,199 Non-AC).
+The checked-in payment interface, order/transaction tables, replay-safe webhook table, and dev adapter are the integration seam. Before enabling production checkout, add a real provider adapter, raw-body signature verification, provider sandbox end-to-end tests, reconciliation, and the production cron secret. The current webhook endpoint deliberately reports that no production provider is configured.
 
-Special requests: call the camp. There is no special-request field.
+## Operational rules
 
-## Content and configuration
-
-| File | Holds |
-|---|---|
-| `src/data/hotel.ts` | Name, address, phones, email, maps, check-in/out |
-| `src/data/rooms.ts` | Single-Bed / Double-Bed groups and physical room numbers |
-| `src/data/tariffs.ts` | Per-person occupancy matrix |
-| `src/data/policies.ts` | Cancellation slabs, children, ID |
-| `src/data/booking-config.ts` | Advance %, stay limits |
-| `src/data/media.ts` | Image ids and alts |
-| `src/lib/booking/arrangements.ts` | Room-combination engine |
-| `assets/` | Original logos and WhatsApp media. Do not edit. |
-
-## Architecture
-
-- Next.js 16 App Router, Tailwind v4, TypeScript
-- One booking reference can cover multiple rooms
-- AC mode is per room and does not change inventory
-- Physical room numbers are stored as `null` until hotel assignment
-- `getBookingService()` is the Milestone 2 seam
-
-## Deploy
-
-Vercel: import the GitHub repo and use the default Next.js settings (`npm run build`, output `.next`).
-
-Set `NEXT_PUBLIC_SITE_URL` to the production origin so canonical URLs, sitemap, and Open Graph resolve correctly.
-
-## Brand
-
-Use only:
-
-- `assets/logo 1.png` (emblem)
-- `assets/logo 2.png` (lockup)
-- `assets/logo with bg.png` (poster)
-
-`assets/honey-dew-beach-camp-logo.svg` is deprecated and not used on the site.
+- Room stays occupy `[checkIn, checkOut)`, so the checkout date can be reused.
+- AC and Non-AC modes share physical inventory.
+- Guests aged 11+ are adults; children 5–10 are half-price; under-five guests are free but occupy capacity.
+- One person in a Single-Bed Room uses tariff tier two.
+- Guest changes and AC upgrades use the booking's original tariff revision.
+- Self-service closes at 11:00 AM Asia/Kolkata on check-in day.
+- Cancellations release reservations atomically; refunds remain in hotel-review state.
+- Cancelled and expired business records are retained.

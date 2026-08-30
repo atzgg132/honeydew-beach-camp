@@ -18,15 +18,24 @@ import { getRoomGroup } from "@/data/rooms";
 import { addDays, formatDisplayDate, formatTimeLabel, nightsBetween, todayIstDate } from "@/lib/dates";
 import { formatInr } from "@/lib/format";
 import { guestCountLabel, physicalOccupancy } from "@/lib/booking/occupancy";
-import { describeArrangement, generateArrangements, maxPartySize } from "@/lib/booking/arrangements";
+import { describeArrangement, maxPartySize } from "@/lib/booking/arrangements";
 import { distributeGuests } from "@/lib/booking/distribute";
 import { priceBooking } from "@/lib/booking/pricing";
 import { bookingHref, parseComposition } from "@/lib/booking/query";
 import { guestSchema, searchSchema } from "@/lib/booking/validation";
-import { getBookingService } from "@/lib/booking/mock-service";
+import {
+  BookingApiError,
+  createCheckoutHold,
+  createPaymentOrder,
+  priceDtoToSnapshot,
+  quoteBooking,
+  searchAvailability,
+  succeedDevelopmentPayment,
+} from "@/lib/booking/booking-service.api";
 import type { AcMode, Arrangement, Availability, BookingContact, GuestComposition, RoomAllocation } from "@/types";
 
-const DRAFT_KEY = "honeydew.demo.booking-draft.v2";
+const DRAFT_KEY = "honeydew.booking-intent.v3";
+const LEGACY_DRAFT_KEY = "honeydew.demo.booking-draft.v2";
 
 type Step = "dates" | "guests" | "arrangement" | "configure" | "details" | "review" | "pay";
 
@@ -35,7 +44,6 @@ const steps: Step[] = ["dates", "guests", "arrangement", "configure", "details",
 interface Draft {
   arrangementId: string | null;
   rooms: RoomAllocation[];
-  contact: BookingContact;
 }
 
 function emptyContact(): BookingContact {
@@ -43,13 +51,16 @@ function emptyContact(): BookingContact {
 }
 
 function emptyDraft(): Draft {
-  return { arrangementId: null, rooms: [], contact: emptyContact() };
+  return { arrangementId: null, rooms: [] };
 }
 
 function loadDraft(): Draft {
   try {
+    sessionStorage.removeItem(LEGACY_DRAFT_KEY);
     const raw = sessionStorage.getItem(DRAFT_KEY);
-    return raw ? (JSON.parse(raw) as Draft) : emptyDraft();
+    if (!raw) return emptyDraft();
+    const parsed = JSON.parse(raw) as Partial<Draft>;
+    return { arrangementId: parsed.arrangementId ?? null, rooms: parsed.rooms ?? [] };
   } catch {
     return emptyDraft();
   }
@@ -73,6 +84,7 @@ export function BookingWizard() {
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0;
   const datesOk = searchSchema.safeParse({ checkIn, checkOut, composition }).success;
   const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [contact, setContact] = useState<BookingContact>(emptyContact);
   const [draftReady, setDraftReady] = useState(false);
   const [previewGuests, setPreviewGuests] = useState<GuestComposition | null>(null);
 
@@ -90,8 +102,9 @@ export function BookingWizard() {
     if ((requestedStep === "configure" || requestedStep === "details" || requestedStep === "review" || requestedStep === "pay") && draft.rooms.length === 0) {
       return "arrangement";
     }
+    if ((requestedStep === "review" || requestedStep === "pay") && !guestSchema.safeParse(contact).success) return "details";
     return requestedStep;
-  }, [datesOk, requestedStep, draft.rooms.length]);
+  }, [datesOk, requestedStep, draft.rooms.length, contact]);
 
   const shownComposition = step === "guests" ? (previewGuests ?? composition) : composition;
   const occupancy = physicalOccupancy(shownComposition);
@@ -167,10 +180,10 @@ export function BookingWizard() {
         ) : null}
         {step === "details" ? (
           <DetailsStep
-            contact={draft.contact}
+            contact={contact}
             onBack={() => go({ step: "configure" })}
-            onContinue={(contact) => {
-              updateDraft({ contact });
+            onContinue={(nextContact) => {
+              setContact(nextContact);
               go({ step: "review" });
             }}
           />
@@ -179,8 +192,9 @@ export function BookingWizard() {
           <ReviewStep
             checkIn={checkIn}
             checkOut={checkOut}
+            composition={composition}
             rooms={draft.rooms}
-            contact={draft.contact}
+            contact={contact}
             onBack={() => go({ step: "details" })}
             onContinue={() => go({ step: "pay" })}
           />
@@ -191,7 +205,7 @@ export function BookingWizard() {
             checkOut={checkOut}
             composition={composition}
             rooms={draft.rooms}
-            contact={draft.contact}
+            contact={contact}
             onBack={() => go({ step: "review" })}
           />
         ) : null}
@@ -362,15 +376,28 @@ function ArrangementStep({
   onSelect: (arrangement: Arrangement) => void;
 }) {
   const [available, setAvailable] = useState<Availability | null>(null);
+  const [options, setOptions] = useState<Arrangement[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { adults, childrenUnder5, children5to10 } = composition;
   useEffect(() => {
-    getBookingService()
-      .availability(checkIn, checkOut)
-      .then(setAvailable);
-  }, [checkIn, checkOut]);
+    let active = true;
+    searchAvailability({ checkIn, checkOut, composition: { adults, childrenUnder5, children5to10 } })
+      .then((result) => {
+        if (!active) return;
+        setAvailable(result.availability);
+        setOptions(result.arrangements);
+      })
+      .catch((caught) => {
+        if (active) setError(caught instanceof Error ? caught.message : "Could not check availability.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [adults, checkIn, checkOut, children5to10, childrenUnder5]);
 
-  if (!available) return <p>Checking rooms...</p>;
+  if (error) return <Notice tone="error">{error}</Notice>;
+  if (!available || !options) return <p>Checking rooms...</p>;
 
-  const options = generateArrangements(composition, available);
   const max = maxPartySize(available);
   const party = physicalOccupancy(composition);
 
@@ -553,6 +580,7 @@ function DetailsStep({
 function ReviewStep({
   checkIn,
   checkOut,
+  composition,
   rooms,
   contact,
   onBack,
@@ -560,12 +588,28 @@ function ReviewStep({
 }: {
   checkIn: string;
   checkOut: string;
+  composition: GuestComposition;
   rooms: RoomAllocation[];
   contact: BookingContact;
   onBack: () => void;
   onContinue: () => void;
 }) {
-  const quote = priceBooking({ checkIn, checkOut, rooms });
+  const [quote, setQuote] = useState<Awaited<ReturnType<typeof quoteBooking>> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { adults, childrenUnder5, children5to10 } = composition;
+  useEffect(() => {
+    let active = true;
+    quoteBooking({ checkIn, checkOut, composition: { adults, childrenUnder5, children5to10 }, rooms })
+      .then((result) => {
+        if (active) setQuote(result);
+      })
+      .catch((caught) => {
+        if (active) setError(caught instanceof Error ? caught.message : "Could not price this stay.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [adults, checkIn, checkOut, children5to10, childrenUnder5, rooms]);
   return (
     <div className="max-w-lg">
       <h1 className="font-serif text-3xl tracking-tight">Review</h1>
@@ -574,7 +618,8 @@ function ReviewStep({
         {formatTimeLabel(hotel.checkInTime)}, check-out {formatTimeLabel(hotel.checkOutTime)}.
       </p>
       <div className="mt-6">
-        <PriceBreakdown snapshot={quote} />
+        {quote ? <PriceBreakdown snapshot={priceDtoToSnapshot(quote.price)} /> : <p>Preparing the current price...</p>}
+        {error ? <Notice tone="error">{error}</Notice> : null}
       </div>
       <div className="mt-6 space-y-1 text-sm leading-6">
         <p>{contact.fullName}</p>
@@ -592,7 +637,7 @@ function ReviewStep({
         <Button type="button" variant="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button type="button" onClick={onContinue}>
+        <Button type="button" onClick={onContinue} disabled={!quote}>
           Continue to advance
         </Button>
       </div>
@@ -618,51 +663,68 @@ function PayStep({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const quote = priceBooking({ checkIn, checkOut, rooms });
-  const fail = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("failPayment") === "1";
+  const preview = priceBooking({ checkIn, checkOut, rooms });
+  const [authoritative, setAuthoritative] = useState<Awaited<ReturnType<typeof quoteBooking>> | null>(null);
+  const [checkoutHold, setCheckoutHold] = useState<Awaited<ReturnType<typeof createCheckoutHold>> | null>(null);
+  const { adults, childrenUnder5, children5to10 } = composition;
+
+  useEffect(() => {
+    let active = true;
+    quoteBooking({ checkIn, checkOut, composition: { adults, childrenUnder5, children5to10 }, rooms })
+      .then((result) => {
+        if (active) setAuthoritative(result);
+      })
+      .catch((caught) => {
+        if (active) setError(caught instanceof Error ? caught.message : "Could not price this stay.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [adults, checkIn, checkOut, children5to10, childrenUnder5, rooms]);
 
   async function pay() {
+    if (!authoritative) return;
     setBusy(true);
     setError(null);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    if (fail) {
-      setBusy(false);
-      setError("The demonstration payment did not complete. Try again.");
-      return;
-    }
     try {
-      const booking = await getBookingService().create({
-        checkIn,
-        checkOut,
-        composition,
-        contact,
-        rooms,
-      });
+      const hold = checkoutHold ?? await createCheckoutHold(authoritative.quoteToken, contact);
+      if (!checkoutHold) setCheckoutHold(hold);
+      if (!hold.paymentReady) throw new Error("Online payment is not configured yet. Your room hold will expire automatically.");
+      const order = await createPaymentOrder(hold.holdId);
+      await succeedDevelopmentPayment(order.orderId);
       clearDraft();
-      router.push(`/book/confirmed?ref=${booking.reference}`);
+      router.push(`/book/confirmed?checkout=${encodeURIComponent(hold.holdId)}`);
     } catch (caught) {
       setBusy(false);
-      setError(caught instanceof Error ? caught.message : "Could not create the demonstration booking.");
+      if (caught instanceof BookingApiError && caught.code === "QUOTE_CHANGED") {
+        const replacement = await quoteBooking({ checkIn, checkOut, composition, rooms }).catch(() => null);
+        if (replacement) setAuthoritative(replacement);
+        setError("The price changed. Review the updated advance before trying again.");
+        return;
+      }
+      setError(caught instanceof Error ? caught.message : "Could not complete the booking.");
     }
   }
+
+  const advance = authoritative ? authoritative.price.advancePaise / 100 : preview.advance;
+  const balance = authoritative ? authoritative.price.balancePaise / 100 : preview.balance;
 
   return (
     <div className="max-w-md">
       <h1 className="font-serif text-3xl tracking-tight">Pay the advance</h1>
-      <p className="mt-3 text-lg">{formatInr(quote.advance)} now</p>
+      <p className="mt-3 text-lg">{formatInr(advance)} now</p>
       <p className="mt-1 text-sm text-ink/70">
-        Remaining {formatInr(quote.balance)} is payable at Honey Dew Beach Camp. {copy.mealsIncluded}
+        Remaining {formatInr(balance)} is payable at Honey Dew Beach Camp. {copy.mealsIncluded}
       </p>
       <div className="mt-6 space-y-3">
-        <Notice tone="demo">{copy.demoBanner}</Notice>
         {error ? <Notice tone="error">{error}</Notice> : null}
       </div>
       <div className="mt-8 flex gap-3">
         <Button type="button" variant="secondary" onClick={onBack} disabled={busy}>
           Back
         </Button>
-        <Button type="button" onClick={pay} disabled={busy}>
-          {busy ? "Processing" : "Pay advance"}
+        <Button type="button" onClick={pay} disabled={busy || !authoritative}>
+          {busy ? "Processing" : authoritative ? "Pay advance" : "Preparing quote"}
         </Button>
       </div>
     </div>

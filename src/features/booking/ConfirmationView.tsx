@@ -10,41 +10,64 @@ import { CallProperty } from "@/components/booking/CallProperty";
 import { copy } from "@/data/copy";
 import { hotel } from "@/data/hotel";
 import { formatDisplayDate, formatTimeLabel } from "@/lib/dates";
-import { getBookingService } from "@/lib/booking/mock-service";
+import { getCheckout } from "@/lib/booking/booking-service.api";
 import type { Booking } from "@/types";
 
 export function ConfirmationView() {
   const search = useSearchParams();
-  const ref = search.get("ref");
+  const checkout = search.get("checkout");
   const [booking, setBooking] = useState<Booking | null>(null);
-  const [missing, setMissing] = useState(!ref);
+  const [state, setState] = useState<"loading" | "pending" | "missing">(checkout ? "loading" : "missing");
 
   useEffect(() => {
-    if (!ref) return;
+    if (!checkout) return;
     let cancelled = false;
-    getBookingService()
-      .getByReference(ref)
-      .then((found) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = async () => {
+      try {
+        const result = await getCheckout(checkout);
         if (cancelled) return;
-        if (!found) setMissing(true);
-        else setBooking(found);
-      });
+        if (result.booking) {
+          setBooking(result.booking);
+          return;
+        }
+        if (result.status === "pending_payment") {
+          setState("pending");
+          timer = setTimeout(load, 2_000);
+          return;
+        }
+        setState("missing");
+      } catch {
+        if (!cancelled) setState("missing");
+      }
+    };
+    void load();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
-  }, [ref]);
+  }, [checkout]);
 
-  if (!ref || missing) {
+  if (!checkout || state === "missing") {
     return (
       <div className="max-w-lg">
-        <h1 className="font-serif text-3xl tracking-tight">No demonstration booking found</h1>
-        <p className="mt-3 text-ink/70">Use Manage booking if you already have a reference, or start a new stay.</p>
+        <h1 className="font-serif text-3xl tracking-tight">Confirmation unavailable</h1>
+        <p className="mt-3 text-ink/70">This confirmation needs the secure checkout session. Use Manage booking if you already have a reference.</p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Button href="/manage-booking">Manage booking</Button>
           <Button href="/book" variant="secondary">
             Book now
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  if (state === "pending") {
+    return (
+      <div className="max-w-lg">
+        <h1 className="font-serif text-3xl tracking-tight">Confirming payment</h1>
+        <p className="mt-3 text-ink/70">Your rooms are held while the verified payment result arrives. This page updates automatically.</p>
       </div>
     );
   }
@@ -59,9 +82,6 @@ export function ConfirmationView() {
       <div className="mt-4 flex flex-wrap gap-2">
         <StatusBadge status={booking.status} />
         <StatusBadge status={booking.paymentStatus} kind="payment" />
-      </div>
-      <div className="mt-6">
-        <Notice tone="demo">{copy.demoBanner}</Notice>
       </div>
       <p className="mt-6">
         {booking.contact.fullName}

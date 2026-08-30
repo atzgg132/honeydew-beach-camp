@@ -1,0 +1,378 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AcMode {
+  AC
+  NON_AC
+}
+
+enum BookingSource {
+  ONLINE
+  PHONE
+  WALK_IN
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+enum ReservationState {
+  HELD
+  CONFIRMED
+  RELEASED
+}
+
+enum PaymentOrderStatus {
+  CREATED
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  PAID_UNALLOCATED
+}
+
+enum PaymentTransactionStatus {
+  SUCCEEDED
+  FAILED
+  REVERSED
+}
+
+enum RefundStatus {
+  NOT_REQUIRED
+  PENDING_HOTEL_REVIEW
+  APPROVED
+  PROCESSING
+  PROCESSED
+  REJECTED
+}
+
+enum BookingEventActor {
+  CUSTOMER
+  ADMIN
+  SYSTEM
+  PAYMENT_WEBHOOK
+}
+
+model HotelSettings {
+  id                   String   @id @default("primary")
+  timezone             String
+  currency             String   @db.Char(3)
+  checkInLocalMinutes  Int
+  checkOutLocalMinutes Int
+  minNights            Int
+  maxNights            Int
+  updatedAt            DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model RoomGroup {
+  id           String        @id
+  slug         String        @unique
+  publicName   String
+  occupancyMin Int
+  occupancyMax Int
+  active       Boolean       @default(true)
+  rooms        Room[]
+  tariffRates  TariffRate[]
+  bookingRooms BookingRoom[]
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @db.Timestamptz(3)
+}
+
+model Room {
+  id           String            @id @default(uuid()) @db.Uuid
+  roomNumber   String            @unique
+  roomGroupId  String
+  roomGroup    RoomGroup         @relation(fields: [roomGroupId], references: [id])
+  supportsAc   Boolean           @default(true)
+  active       Boolean           @default(true)
+  reservations RoomReservation[]
+  createdAt    DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime          @updatedAt @db.Timestamptz(3)
+
+  @@index([roomGroupId, active])
+}
+
+model TariffRevision {
+  id            String       @id @default(uuid()) @db.Uuid
+  revision      Int          @unique
+  effectiveFrom DateTime     @db.Timestamptz(3)
+  retiredAt     DateTime?    @db.Timestamptz(3)
+  createdBy     String?
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  rates         TariffRate[]
+  bookings      Booking[]
+}
+
+model TariffRate {
+  id                 String         @id @default(uuid()) @db.Uuid
+  tariffRevisionId   String         @db.Uuid
+  tariffRevision     TariffRevision @relation(fields: [tariffRevisionId], references: [id])
+  roomGroupId        String
+  roomGroup          RoomGroup      @relation(fields: [roomGroupId], references: [id])
+  tariffOccupancy    Int
+  acMode             AcMode
+  ratePerPersonPaise Int
+
+  @@unique([tariffRevisionId, roomGroupId, tariffOccupancy, acMode])
+  @@index([roomGroupId, tariffRevisionId])
+}
+
+model BookingPolicyRevision {
+  id                 String    @id @default(uuid()) @db.Uuid
+  revision           Int       @unique
+  advanceBasisPoints Int
+  holdTtlMinutes     Int
+  effectiveFrom      DateTime  @db.Timestamptz(3)
+  retiredAt          DateTime? @db.Timestamptz(3)
+  createdBy          String?
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  bookings           Booking[]
+}
+
+model Booking {
+  id                     String                @id @default(uuid()) @db.Uuid
+  reference              String?               @unique
+  source                 BookingSource
+  status                 BookingStatus
+  checkIn                DateTime              @db.Date
+  checkOut               DateTime              @db.Date
+  holdExpiresAt          DateTime?             @db.Timestamptz(3)
+  contactFullName        String
+  contactPhoneE164       String
+  contactPhoneLookupHash String                @db.Char(64)
+  contactEmail           String
+  adults                 Int
+  childrenUnder5         Int
+  children5To10          Int
+  currency               String                @db.Char(3)
+  tariffRevisionId       String                @db.Uuid
+  tariffRevision         TariffRevision        @relation(fields: [tariffRevisionId], references: [id])
+  policyRevisionId       String                @db.Uuid
+  policyRevision         BookingPolicyRevision @relation(fields: [policyRevisionId], references: [id])
+  nights                 Int
+  subtotalPaise          Int
+  advanceBasisPoints     Int
+  advanceDuePaise        Int
+  advancePaidPaise       Int                   @default(0)
+  outstandingPaise       Int
+  rooms                  BookingRoom[]
+  payments               PaymentOrder[]
+  cancellation           Cancellation?
+  events                 BookingEvent[]
+  checkoutSessions       CheckoutSession[]
+  manageSessions         ManageSession[]
+  idempotencyRequests    IdempotencyRequest[]
+  createdAt              DateTime              @default(now()) @db.Timestamptz(3)
+  confirmedAt            DateTime?             @db.Timestamptz(3)
+  cancelledAt            DateTime?             @db.Timestamptz(3)
+  updatedAt              DateTime              @updatedAt @db.Timestamptz(3)
+
+  @@index([status, checkIn, checkOut])
+  @@index([createdAt])
+}
+
+model BookingRoom {
+  id                    String            @id @default(uuid()) @db.Uuid
+  bookingId             String            @db.Uuid
+  booking               Booking           @relation(fields: [bookingId], references: [id])
+  roomGroupId           String
+  roomGroup             RoomGroup         @relation(fields: [roomGroupId], references: [id])
+  roomGroupNameSnapshot String
+  displayOrder          Int
+  acMode                AcMode
+  adults                Int
+  childrenUnder5        Int
+  children5To10         Int
+  physicalOccupancy     Int
+  billingHalfUnits      Int
+  tariffOccupancy       Int
+  ratePerPersonPaise    Int
+  nightlyTotalPaise     Int
+  nights                Int
+  stayTotalPaise        Int
+  reservations          RoomReservation[]
+  createdAt             DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime          @updatedAt @db.Timestamptz(3)
+
+  @@unique([bookingId, displayOrder])
+  @@index([bookingId])
+}
+
+model RoomBlock {
+  id          String           @id @default(uuid()) @db.Uuid
+  reason      String
+  createdBy   String?
+  active      Boolean          @default(true)
+  reservation RoomReservation?
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  releasedAt  DateTime?        @db.Timestamptz(3)
+}
+
+model RoomReservation {
+  id            String           @id @default(uuid()) @db.Uuid
+  roomId        String           @db.Uuid
+  room          Room             @relation(fields: [roomId], references: [id])
+  bookingRoomId String?          @db.Uuid
+  bookingRoom   BookingRoom?     @relation(fields: [bookingRoomId], references: [id])
+  roomBlockId   String?          @unique @db.Uuid
+  roomBlock     RoomBlock?       @relation(fields: [roomBlockId], references: [id])
+  checkIn       DateTime         @db.Date
+  checkOut      DateTime         @db.Date
+  state         ReservationState
+  expiresAt     DateTime?        @db.Timestamptz(3)
+  releasedAt    DateTime?        @db.Timestamptz(3)
+  createdAt     DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@index([roomId, state, checkIn, checkOut])
+  @@index([bookingRoomId, state])
+  @@index([expiresAt, state])
+}
+
+model PaymentOrder {
+  id                String               @id @default(uuid()) @db.Uuid
+  bookingId         String               @db.Uuid
+  booking           Booking              @relation(fields: [bookingId], references: [id])
+  provider          String
+  providerOrderId   String?
+  status            PaymentOrderStatus
+  amountPaise       Int
+  currency          String               @db.Char(3)
+  providerExpiresAt DateTime?            @db.Timestamptz(3)
+  transactions      PaymentTransaction[]
+  createdAt         DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@unique([provider, providerOrderId])
+  @@index([bookingId, status])
+}
+
+model PaymentTransaction {
+  id                String                   @id @default(uuid()) @db.Uuid
+  paymentOrderId    String                   @db.Uuid
+  paymentOrder      PaymentOrder             @relation(fields: [paymentOrderId], references: [id])
+  provider          String
+  providerPaymentId String
+  status            PaymentTransactionStatus
+  amountPaise       Int
+  currency          String                   @db.Char(3)
+  providerPaidAt    DateTime?                @db.Timestamptz(3)
+  createdAt         DateTime                 @default(now()) @db.Timestamptz(3)
+
+  @@unique([provider, providerPaymentId])
+  @@index([paymentOrderId])
+}
+
+model WebhookEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  provider        String
+  providerEventId String
+  eventType       String
+  payloadHash     String    @db.Char(64)
+  signatureValid  Boolean
+  processedAt     DateTime? @db.Timestamptz(3)
+  resultCode      String?
+  receivedAt      DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@unique([provider, providerEventId])
+  @@index([receivedAt])
+}
+
+model CheckoutSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  bookingId String    @db.Uuid
+  booking   Booking   @relation(fields: [bookingId], references: [id])
+  tokenHash String    @unique @db.Char(64)
+  csrfHash  String    @db.Char(64)
+  expiresAt DateTime  @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId, expiresAt])
+}
+
+model ManageSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  bookingId String    @db.Uuid
+  booking   Booking   @relation(fields: [bookingId], references: [id])
+  tokenHash String    @unique @db.Char(64)
+  csrfHash  String    @db.Char(64)
+  expiresAt DateTime  @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId, expiresAt])
+}
+
+model Cancellation {
+  id                      String       @id @default(uuid()) @db.Uuid
+  bookingId               String       @unique @db.Uuid
+  booking                 Booking      @relation(fields: [bookingId], references: [id])
+  policyVersion           String
+  slabId                  String
+  slabLabel               String
+  hoursUntilCheckIn       Decimal      @db.Decimal(12, 4)
+  advancePaidPaise        Int
+  deductionBasisPoints    Int
+  deductionPaise          Int
+  refundablePaise         Int
+  refundStatus            RefundStatus
+  actualRefundPaise       Int?
+  providerRefundReference String?
+  cancelledAt             DateTime     @db.Timestamptz(3)
+  approvedAt              DateTime?    @db.Timestamptz(3)
+  processedAt             DateTime?    @db.Timestamptz(3)
+}
+
+model BookingEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  bookingId      String            @db.Uuid
+  booking        Booking           @relation(fields: [bookingId], references: [id])
+  type           String
+  actorType      BookingEventActor
+  actorId        String?
+  deltaPaise     Int?
+  data           Json
+  idempotencyKey String?
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+
+  @@unique([bookingId, type, idempotencyKey])
+  @@index([bookingId, createdAt])
+}
+
+model IdempotencyRequest {
+  id             String   @id @default(uuid()) @db.Uuid
+  scope          String
+  keyHash        String   @db.Char(64)
+  requestHash    String   @db.Char(64)
+  bookingId      String?  @db.Uuid
+  booking        Booking? @relation(fields: [bookingId], references: [id])
+  responseStatus Int?
+  responseBody   Json?
+  expiresAt      DateTime @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([scope, keyHash])
+  @@index([expiresAt])
+}
+
+model RateLimitBucket {
+  id            String   @id @default(uuid()) @db.Uuid
+  bucketKeyHash String   @db.Char(64)
+  windowStart   DateTime @db.Timestamptz(3)
+  windowSeconds Int
+  count         Int
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([bucketKeyHash, windowStart, windowSeconds])
+  @@index([windowStart])
+}

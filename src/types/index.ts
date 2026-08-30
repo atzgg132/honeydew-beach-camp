@@ -111,7 +111,7 @@ export interface CancellationQuote {
 export interface Booking {
   id: string;
   reference: string;
-  isDemo: true;
+  isDemo: boolean;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   checkIn: string;

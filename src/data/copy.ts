@@ -1,7 +1,6 @@
 import { hotel } from "@/data/hotel";
 
 export const copy = {
-  demoBanner: "Demonstration only. No payment is taken and no booking is sent to the hotel.",
   hero: {
     headline: "A stay on Mousuni Island.",
     sub: "Honey Dew Beach Camp, on the sand at Mousuni Island.",
@@ -22,6 +21,6 @@ export const copy = {
   specialRequest:
     "Have a special request? Please call Honey Dew Beach Camp and the team will assist where possible.",
   oneGuestNote: "One guest in a Single-Bed Room is charged at the two-person tariff rate, for one person.",
-  advanceNote: "An advance is payable now. The percentage is set by the hotel and is 30% in this demonstration.",
+  advanceNote: "An advance is payable now. The current percentage is shown in the booking quote.",
   rateQualifier: "per person, per night",
 };

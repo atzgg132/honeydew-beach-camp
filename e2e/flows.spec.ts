@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const backendConfigured = Boolean(process.env.DATABASE_URL);
+
 function futureDate(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() + days);
@@ -20,6 +22,17 @@ async function setAllRoomsAc(page: Page) {
   for (let i = 0; i < count; i += 1) {
     await buttons.nth(i).click();
   }
+}
+
+async function createSimpleBooking(page: Page, days: number) {
+  await page.goto(`/book?checkIn=${futureDate(days)}&checkOut=${futureDate(days + 1)}&adults=1&childrenUnder5=0&children5to10=0&step=arrangement`);
+  await page.getByRole("button", { name: /Single-Bed Room · 1 guest/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await fillContact(page);
+  await page.getByRole("button", { name: "Continue to advance" }).click();
+  await page.getByRole("button", { name: "Pay advance" }).click();
+  await expect(page.getByRole("heading", { name: "Stay reserved" })).toBeVisible();
+  return (await page.locator("p.text-2xl").textContent())?.trim() ?? "";
 }
 
 test.describe("public site", () => {
@@ -50,6 +63,7 @@ test.describe("public site", () => {
 });
 
 test.describe("booking", () => {
+  test.skip(!backendConfigured, "Booking browser tests require a migrated and seeded PostgreSQL DATABASE_URL.");
   test("empty /book shows the date step", async ({ page }) => {
     await page.goto("/book");
     await expect(page.getByRole("heading", { name: "Choose dates" })).toBeVisible();
@@ -127,29 +141,33 @@ test.describe("booking", () => {
 });
 
 test.describe("manage booking", () => {
-  test("retrieves a multi-room seed and upgrades one room", async ({ page }) => {
-    await page.goto("/manage-booking");
-    await page.getByRole("button", { name: "Open HD-DEMO-5520" }).click();
-    await expect(page.getByRole("heading", { name: "HD-DEMO-5520" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Room 1 · Single-Bed Room" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Room 2 · Single-Bed Room" })).toBeVisible();
+  test.skip(!backendConfigured, "Manage Booking browser tests require a migrated and seeded PostgreSQL DATABASE_URL.");
+
+  test("verifies a secure session and upgrades one room", async ({ page }) => {
+    const reference = await createSimpleBooking(page, 35);
+    await page.getByRole("link", { name: "Manage booking" }).click();
+    await page.getByLabel("Phone").fill("9876543210");
+    await page.getByRole("button", { name: "Find booking" }).click();
+    await expect(page.getByRole("heading", { name: reference })).toBeVisible();
     await expect(page.getByText("Dates cannot be changed online.")).toBeVisible();
     const balance = page.locator("div").filter({ hasText: /^Balance at the hotel/ }).locator("dd");
     const before = await balance.textContent();
-    const acToggle = page.getByRole("button", { name: /Air-conditioning · Room 1/ });
-    if (await acToggle.isVisible()) await acToggle.click();
+    const upgradeToggle = page.getByRole("button", { name: /Air-conditioning · Room 1/ });
+    if (await upgradeToggle.isVisible()) await upgradeToggle.click();
     await page.getByRole("button", { name: /Upgrade Room 1/ }).click();
     await page.getByRole("button", { name: "Confirm upgrade" }).click();
-    await expect(page.getByText("2 adults · AC included")).toHaveCount(2);
     const after = await balance.textContent();
     expect(after).not.toEqual(before);
   });
 
-  test("cancellation quote is shown for the near-term seed", async ({ page }) => {
-    await page.goto("/manage-booking");
-    await page.getByRole("button", { name: "Open HD-DEMO-5520" }).click();
-    const cancelToggle = page.getByRole("button", { name: "Cancellation" });
-    if (await cancelToggle.isVisible()) await cancelToggle.click();
+  test("shows a server cancellation quote and cancels atomically", async ({ page }) => {
+    const reference = await createSimpleBooking(page, 5);
+    await page.getByRole("link", { name: "Manage booking" }).click();
+    await page.getByLabel("Phone").fill("9876543210");
+    await page.getByRole("button", { name: "Find booking" }).click();
+    await expect(page.getByRole("heading", { name: reference })).toBeVisible();
+    const cancellationToggle = page.getByRole("button", { name: "Cancellation" });
+    if (await cancellationToggle.isVisible()) await cancellationToggle.click();
     await expect(page.getByText(/Within 7 days/)).toBeVisible();
     await page.getByRole("button", { name: "Cancel stay" }).click();
     await page.getByRole("button", { name: "Confirm cancellation" }).click();
