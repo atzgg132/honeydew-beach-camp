@@ -13,10 +13,17 @@ export default defineConfig({
   retries: isCI ? 2 : 0,
   forbidOnly: isCI,
   reporter: isCI ? [["github"], ["html", { open: "never" }], ["list"]] : [["list"]],
+  // The browser suite drives a development server, which compiles routes on first request.
+  // A cold compile under CI contention can exceed the default action timeout, which shows
+  // up as an unrelated-looking click failure.
+  timeout: isCI ? 90_000 : 30_000,
+  expect: { timeout: isCI ? 15_000 : 5_000 },
   use: {
     baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    actionTimeout: isCI ? 20_000 : 0,
+    navigationTimeout: isCI ? 30_000 : 0,
   },
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
