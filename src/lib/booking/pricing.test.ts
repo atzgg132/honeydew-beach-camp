@@ -265,7 +265,10 @@ describe("children", () => {
       nights: 1,
     });
     expect(priced.tariffOccupancy).toBe(3);
-    expect(priced.nightlyTotal).toBe(1399 * 2 + Math.round(1399 / 2));
+    // Half of the per-person rate, exactly. Rates are constrained to an even number of
+    // paise so this never needs rounding, and the server charges precisely this.
+    expect(priced.nightlyTotal).toBe(1399 * 2 + 1399 / 2);
+    expect(priced.nightlyTotal).toBe(3497.5);
   });
 });
 
@@ -344,7 +347,15 @@ describe("availability", () => {
 });
 
 describe("money helper", () => {
-  it("keeps half-child charges in whole rupees", () => {
-    expect(roomNightlyTotal(1399, { adults: 2, childrenUnder5: 0, children5to10: 1 }) % 1).toBe(0);
+  // The preview used to round a child's half rate up to a whole rupee. The server does not,
+  // so the wizard showed a price the guest was never charged - up to a few rupees out on a
+  // multi-night stay. The preview now mirrors the server exactly.
+  it("charges exactly half the per-person rate for a child aged 5 to 10", () => {
+    expect(roomNightlyTotal(1399, { adults: 2, childrenUnder5: 0, children5to10: 1 })).toBe(3497.5);
+    expect(roomNightlyTotal(1499, { adults: 0, childrenUnder5: 0, children5to10: 1 })).toBe(749.5);
+  });
+
+  it("keeps whole-rupee totals whole when no half units are involved", () => {
+    expect(roomNightlyTotal(1399, { adults: 2, childrenUnder5: 1, children5to10: 0 }) % 1).toBe(0);
   });
 });

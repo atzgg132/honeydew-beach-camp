@@ -1,7 +1,7 @@
 import { hotel } from "@/data/hotel";
 import { cancellationSlabs } from "@/data/policies";
+import { roundBasisPoints } from "@/domain/booking/pricing";
 import { hoursUntilIst } from "@/lib/dates";
-import { roundRupee } from "@/lib/booking/pricing";
 import type { CancellationQuote, CancellationSlab } from "@/types";
 
 export function slabForHours(hoursUntilCheckIn: number): CancellationSlab {
@@ -24,7 +24,10 @@ export function quoteCancellation(input: {
     input.now ?? new Date(),
   );
   const slab = slabForHours(hours);
-  const charge = roundRupee((input.advancePaid * slab.deductionPercent) / 100);
+  // Mirrors the server exactly: basis points applied to integer paise. Rounding to whole
+  // rupees here would quote the guest a refund the hotel is not going to pay.
+  const advancePaise = Math.round(input.advancePaid * 100);
+  const charge = roundBasisPoints(advancePaise, slab.deductionPercent * 100) / 100;
   const refundable = Math.max(0, input.advancePaid - charge);
 
   return {
