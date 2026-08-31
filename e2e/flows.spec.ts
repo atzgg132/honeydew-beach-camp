@@ -24,6 +24,27 @@ async function setAllRoomsAc(page: Page) {
   }
 }
 
+// Every booking this suite completes takes its own dates. The camp has seven physical
+// rooms and a hold survives for fifteen minutes, so reusing an offset across the two
+// browser projects or across a retry exhausts the inventory and fails for the wrong reason.
+let bookingSequence = 0;
+
+/** A stay far enough out to sit in the zero-deduction cancellation band. */
+function nextDistantStayOffset(): number {
+  bookingSequence += 1;
+  return 40 + bookingSequence * 3;
+}
+
+/**
+ * A stay inside the "Within 7 days" cancellation band but clear of the 48-hour boundary,
+ * rotated so repeated attempts do not all land on one date.
+ */
+let nearSequence = 0;
+function nextNearStayOffset(): number {
+  nearSequence += 1;
+  return 3 + (nearSequence % 4);
+}
+
 async function createSimpleBooking(page: Page, days: number) {
   await page.goto(`/book?checkIn=${futureDate(days)}&checkOut=${futureDate(days + 1)}&adults=1&childrenUnder5=0&children5to10=0&step=arrangement`);
   await page.getByRole("button", { name: /Single-Bed Room · 1 guest/ }).click();
@@ -144,8 +165,8 @@ test.describe("manage booking", () => {
   test.skip(!backendConfigured, "Manage Booking browser tests require a migrated and seeded PostgreSQL DATABASE_URL.");
 
   test("verifies a secure session and upgrades one room", async ({ page }) => {
-    const reference = await createSimpleBooking(page, 35);
-    await page.getByRole("link", { name: "Manage booking" }).click();
+    const reference = await createSimpleBooking(page, nextDistantStayOffset());
+    await page.getByRole("banner").getByRole("link", { name: "Manage booking" }).first().click();
     await page.getByLabel("Phone").fill("9876543210");
     await page.getByRole("button", { name: "Find booking" }).click();
     await expect(page.getByRole("heading", { name: reference })).toBeVisible();
@@ -161,8 +182,8 @@ test.describe("manage booking", () => {
   });
 
   test("shows a server cancellation quote and cancels atomically", async ({ page }) => {
-    const reference = await createSimpleBooking(page, 5);
-    await page.getByRole("link", { name: "Manage booking" }).click();
+    const reference = await createSimpleBooking(page, nextNearStayOffset());
+    await page.getByRole("banner").getByRole("link", { name: "Manage booking" }).first().click();
     await page.getByLabel("Phone").fill("9876543210");
     await page.getByRole("button", { name: "Find booking" }).click();
     await expect(page.getByRole("heading", { name: reference })).toBeVisible();
