@@ -45,8 +45,22 @@ async function api<T>(path: string, init: RequestInit = {}, csrf?: "checkout" | 
   return body?.data as T;
 }
 
-function commandHeaders() {
-  return { "Idempotency-Key": crypto.randomUUID() };
+// Idempotency keys are derived from the operation and its payload rather than generated
+// per call. A random key per invocation means a user-triggered retry presents a new key,
+// which defeats the server-side replay guard entirely and can double-apply a mutation.
+//
+// A content-derived key makes an identical retry idempotent while a genuinely different
+// request still gets its own key. The server independently re-hashes the body and rejects
+// a key reused for different content, so this only needs to be stable, not unguessable.
+async function idempotencyKey(scope: string, payload?: unknown): Promise<string> {
+  const material = JSON.stringify([scope, payload ?? null]);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(material));
+  const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${scope}-${hex.slice(0, 32)}`;
+}
+
+async function commandHeaders(scope: string, payload?: unknown) {
+  return { "Idempotency-Key": await idempotencyKey(scope, payload) };
 }
 
 function quoteInput(
@@ -126,7 +140,7 @@ export async function quoteBooking(input: {
 export async function createCheckoutHold(quoteToken: string, contact: BookingContact) {
   return api<{ holdId: string; expiresAt: string; paymentReady: boolean }>("/api/checkout/holds", {
     method: "POST",
-    headers: commandHeaders(),
+    headers: await commandHeaders("create-hold", { quoteToken, contact }),
     body: JSON.stringify({ quoteToken, contact }),
   });
 }
@@ -134,7 +148,7 @@ export async function createCheckoutHold(quoteToken: string, contact: BookingCon
 export async function createPaymentOrder(holdId: string) {
   return api<{ orderId: string; amountPaise: number; currency: string; clientData: { mode?: string } }>(
     `/api/checkout/holds/${encodeURIComponent(holdId)}/payment-order`,
-    { method: "POST", headers: commandHeaders() },
+    { method: "POST", headers: await commandHeaders("payment-order", holdId) },
     "checkout",
   );
 }
@@ -171,7 +185,7 @@ export async function logoutManagedBooking() {
 export async function updateManagedContact(contact: BookingContact) {
   return api<Booking>(
     "/api/manage-booking/contact",
-    { method: "PATCH", headers: commandHeaders(), body: JSON.stringify(contact) },
+    { method: "PATCH", headers: await commandHeaders("manage-contact", contact), body: JSON.stringify(contact) },
     "manage",
   );
 }
@@ -186,7 +200,7 @@ export async function quoteManagedGuestChange(composition: GuestComposition) {
 export async function applyManagedGuestChange(quoteToken: string) {
   return api<Booking>(
     "/api/manage-booking/guest-change",
-    { method: "POST", headers: commandHeaders(), body: JSON.stringify({ quoteToken }) },
+    { method: "POST", headers: await commandHeaders("manage-guests", quoteToken), body: JSON.stringify({ quoteToken }) },
     "manage",
   );
 }
@@ -201,7 +215,7 @@ export async function quoteManagedAcUpgrade(roomId: string) {
 export async function applyManagedAcUpgrade(roomId: string, quoteToken: string) {
   return api<Booking>(
     `/api/manage-booking/rooms/${encodeURIComponent(roomId)}/upgrade`,
-    { method: "POST", headers: commandHeaders(), body: JSON.stringify({ quoteToken }) },
+    { method: "POST", headers: await commandHeaders("manage-upgrade", { roomId, quoteToken }), body: JSON.stringify({ quoteToken }) },
     "manage",
   );
 }
@@ -237,5 +251,7 @@ export async function quoteManagedCancellation(): Promise<CancellationQuote> {
 }
 
 export async function cancelManagedBooking() {
-  return api<Booking>("/api/manage-booking/cancel", { method: "POST", headers: commandHeaders() }, "manage");
+  // Cancelling is terminal and takes no payload, so one stable key per booking is correct:
+  // a double submit must cancel exactly once. The server scopes the key by booking id.
+  return api<Booking>("/api/manage-booking/cancel", { method: "POST", headers: await commandHeaders("manage-cancel") }, "manage");
 }
