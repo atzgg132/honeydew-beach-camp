@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --project integration",
-    "test:unit": "vitest run src/**/*.test.ts",
+    "test:unit": "vitest run --project unit",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -20,7 +20,8 @@
     "db:validate": "prisma validate",
     "test:e2e": "playwright test e2e/flows.spec.ts",
     "test:visual": "playwright test e2e/visual.spec.ts",
-    "optimize:media": "node scripts/optimize-media.mjs"
+    "optimize:media": "node scripts/optimize-media.mjs",
+    "db:verify": "node scripts/verify-db-constraints.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

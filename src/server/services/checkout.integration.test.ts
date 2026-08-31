@@ -4,12 +4,9 @@ import { db } from "@/server/db/client";
 import { createHold } from "@/server/services/checkout-service";
 import { createQuote } from "@/server/services/quote-service";
 
+// test/setup/integration.ts points DATABASE_URL at the disposable database and refuses to
+// run at all if that database looks like production.
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-if (testDatabaseUrl) {
-  process.env.DATABASE_URL = testDatabaseUrl;
-  process.env.APP_TOKEN_SECRET ??= "test-app-token-secret-at-least-thirty-two-characters";
-  process.env.PII_LOOKUP_PEPPER ??= "test-pii-lookup-pepper-at-least-thirty-two-characters";
-}
 
 async function cleanBusinessData() {
   const prisma = db();
