@@ -1,5 +1,6 @@
 import "server-only";
 import { Prisma, RefundStatus } from "@prisma/client";
+import { ApiError } from "@/contracts/errors";
 import { todayIstDate } from "@/lib/dates";
 import type { Booking } from "@/types";
 
@@ -15,10 +16,23 @@ const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
 
 export function toCustomerBooking(record: CustomerBookingRecord): Booking {
   const checkOut = dateOnly(record.checkOut);
+
+  // The customer-facing Booking shape can only express a settled stay. A booking still
+  // awaiting payment, or one that expired unpaid, previously fell through to "confirmed",
+  // which would have shown a guest a stay they do not have. Callers gate on status before
+  // reaching here; if one ever stops doing so, fail loudly rather than lie.
+  if (record.status !== "CONFIRMED" && record.status !== "CANCELLED") {
+    throw new ApiError(
+      409,
+      "INVALID_STATE",
+      "This booking is not confirmed yet.",
+    );
+  }
+
   const displayStatus: Booking["status"] =
     record.status === "CANCELLED"
       ? "cancelled"
-      : record.status === "CONFIRMED" && checkOut <= todayIstDate()
+      : checkOut <= todayIstDate()
         ? "completed"
         : "confirmed";
   const paymentStatus: Booking["paymentStatus"] = record.cancellation

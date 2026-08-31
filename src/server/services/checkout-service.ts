@@ -9,16 +9,10 @@ import { last10Digits } from "@/lib/format";
 import { deriveToken, phoneLookupHash, sha256 } from "@/server/crypto";
 import { db } from "@/server/db/client";
 import { customerBookingInclude, toCustomerBooking } from "@/server/dto";
+import { allocateRooms } from "@/server/services/allocation";
 import { dateOnlyToUtc } from "@/server/services/availability-service";
 import { loadCurrentBookingConfig } from "@/server/services/booking-config-service";
 import { createQuote, readQuoteToken } from "@/server/services/quote-service";
-
-interface LockedRoom {
-  id: string;
-  roomGroupId: string;
-  roomNumber: string;
-  supportsAc: boolean;
-}
 
 function requestHash(quoteToken: string, contact: BookingContactInput) {
   return sha256(JSON.stringify({ quoteToken, contact }));
@@ -55,6 +49,7 @@ export async function createHold(input: {
   };
   validateRoomIntent(intent);
   const config = await loadCurrentBookingConfig();
+  const groupNames = new Map(config.roomGroups.map((group) => [group.id, group.publicName]));
   const price = priceBookingPaise(intent, config.rates, config.policyRevision.advanceBasisPoints);
   if (
     quote.tariffRevisionId !== config.tariffRevision.id ||
@@ -83,72 +78,14 @@ export async function createHold(input: {
     return await withSerializableRetry(() =>
       db().$transaction(
       async (transaction) => {
-        const groups = [...new Set(intent.rooms.map((room) => room.roomGroupId))];
-        const lockedRooms = await transaction.$queryRaw<LockedRoom[]>(Prisma.sql`
-          SELECT "id", "roomGroupId", "roomNumber", "supportsAc"
-          FROM "Room"
-          WHERE "active" = true AND "roomGroupId" IN (${Prisma.join(groups)})
-          ORDER BY "roomGroupId", "roomNumber"
-          FOR UPDATE
-        `);
         const start = dateOnlyToUtc(intent.checkIn);
         const end = dateOnlyToUtc(intent.checkOut);
         const now = new Date();
-        const stale = await transaction.roomReservation.findMany({
-          where: {
-            roomId: { in: lockedRooms.map((room) => room.id) },
-            state: "HELD",
-            expiresAt: { lte: now },
-            bookingRoom: {
-              booking: {
-                status: "PENDING_PAYMENT",
-                payments: { none: { status: "PAID" } },
-              },
-            },
-          },
-          select: { id: true, bookingRoom: { select: { bookingId: true } } },
-        });
-        const staleBookingIds = [...new Set(stale.flatMap((item) => item.bookingRoom?.bookingId ?? []))];
-        if (stale.length > 0) {
-          await transaction.roomReservation.updateMany({
-            where: { id: { in: stale.map((item) => item.id) } },
-            data: { state: "RELEASED", releasedAt: now },
-          });
-          await transaction.paymentOrder.updateMany({
-            where: { bookingId: { in: staleBookingIds }, status: { in: ["CREATED", "PENDING"] } },
-            data: { status: "EXPIRED" },
-          });
-          await transaction.booking.updateMany({
-            where: { id: { in: staleBookingIds }, status: "PENDING_PAYMENT" },
-            data: { status: "EXPIRED" },
-          });
-          await transaction.bookingEvent.createMany({
-            data: staleBookingIds.map((bookingId) => ({
-              bookingId,
-              type: "HOLD_EXPIRED",
-              actorType: "SYSTEM" as const,
-              data: { expiredAt: now.toISOString() },
-            })),
-            skipDuplicates: true,
-          });
-        }
-        const occupied = await transaction.roomReservation.findMany({
-          where: {
-            roomId: { in: lockedRooms.map((room) => room.id) },
-            state: { in: ["HELD", "CONFIRMED"] },
-            checkIn: { lt: end },
-            checkOut: { gt: start },
-          },
-          select: { roomId: true },
-        });
-        const occupiedIds = new Set(occupied.map((reservation) => reservation.roomId));
-        const free = lockedRooms.filter((room) => !occupiedIds.has(room.id));
-        const assigned = intent.rooms.map((room) => {
-          const index = free.findIndex(
-            (candidate) => candidate.roomGroupId === room.roomGroupId && (room.acMode !== "ac" || candidate.supportsAc),
-          );
-          if (index < 0) throw new ApiError(409, "AVAILABILITY_CHANGED", "The selected rooms are no longer available.");
-          return free.splice(index, 1)[0];
+        const assigned = await allocateRooms(transaction, {
+          intents: intent.rooms,
+          checkIn: start,
+          checkOut: end,
+          now,
         });
 
         const expiresAt = new Date(now.getTime() + config.policyRevision.holdTtlMinutes * 60_000);
@@ -182,7 +119,7 @@ export async function createHold(input: {
               create: price.rooms.map((room, index) => ({
                 id: roomIds[index],
                 roomGroupId: room.roomGroupId,
-                roomGroupNameSnapshot: room.roomGroupId === "single-bed" ? "Single-Bed Room" : "Double-Bed Room",
+                roomGroupNameSnapshot: groupNames.get(room.roomGroupId) ?? room.roomGroupId,
                 displayOrder: index,
                 acMode: room.acMode === "ac" ? "AC" : "NON_AC",
                 adults: room.composition.adults,

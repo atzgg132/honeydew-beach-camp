@@ -1,4 +1,5 @@
 import "server-only";
+import { timingSafeEqual } from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
 import { ApiError } from "@/contracts/errors";
 
@@ -43,11 +44,22 @@ export function clearSessionCookies(response: NextResponse, kind: "checkout" | "
   response.cookies.set(csrfName, "", { httpOnly: false, secure, sameSite: "strict", path: "/", maxAge: 0 });
 }
 
+/**
+ * Constant-time string comparison. A plain `!==` leaks how many leading characters matched
+ * through its timing, which over enough requests is enough to reconstruct a token.
+ */
+function safeEqual(left: string, right: string): boolean {
+  const a = Buffer.from(left, "utf8");
+  const b = Buffer.from(right, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 export function assertMutationSecurity(request: NextRequest, kind: "checkout" | "manage") {
   const expectedCookie = kind === "checkout" ? cookies.checkoutCsrf : cookies.manageCsrf;
   const csrfCookie = request.cookies.get(expectedCookie)?.value;
   const csrfHeader = request.headers.get("x-csrf-token");
-  if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+  if (!csrfCookie || !csrfHeader || !safeEqual(csrfCookie, csrfHeader)) {
     throw new ApiError(403, "CSRF_FAILED", "The request could not be verified.");
   }
   const origin = request.headers.get("origin");

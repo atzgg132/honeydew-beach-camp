@@ -10,8 +10,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ or
   return route(async () => {
     if (process.env.NODE_ENV === "production") return new Response(null, { status: 404 });
     assertMutationSecurity(request, "checkout");
-    await requireCheckoutSession(request);
     const orderId = requireUuidParam((await context.params).orderId, "orderId");
-    return succeedDevPayment(orderId);
+
+    // The session must be bound to the booking this order belongs to. Verifying only that
+    // *some* valid checkout session exists would let any holder of one settle any other
+    // guest's order. This endpoint is development-only and returns 404 in production, but
+    // the shape must not be copied to the real webhook path, and the browser suite exercises
+    // it on every run.
+    const session = await requireCheckoutSession(request);
+    return succeedDevPayment(orderId, session.bookingId);
   });
 }
