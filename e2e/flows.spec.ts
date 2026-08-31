@@ -166,7 +166,9 @@ test.describe("manage booking", () => {
 
   test("verifies a secure session and upgrades one room", async ({ page }) => {
     const reference = await createSimpleBooking(page, nextDistantStayOffset());
-    await page.getByRole("banner").getByRole("link", { name: "Manage booking" }).first().click();
+    // The confirmation page link, not the header or footer one: only this carries ?ref=,
+    // which prefills the booking reference the lookup form needs.
+    await page.locator('a[href^="/manage-booking?ref="]').click();
     await page.getByLabel("Phone").fill("9876543210");
     await page.getByRole("button", { name: "Find booking" }).click();
     await expect(page.getByRole("heading", { name: reference })).toBeVisible();
@@ -183,7 +185,9 @@ test.describe("manage booking", () => {
 
   test("shows a server cancellation quote and cancels atomically", async ({ page }) => {
     const reference = await createSimpleBooking(page, nextNearStayOffset());
-    await page.getByRole("banner").getByRole("link", { name: "Manage booking" }).first().click();
+    // The confirmation page link, not the header or footer one: only this carries ?ref=,
+    // which prefills the booking reference the lookup form needs.
+    await page.locator('a[href^="/manage-booking?ref="]').click();
     await page.getByLabel("Phone").fill("9876543210");
     await page.getByRole("button", { name: "Find booking" }).click();
     await expect(page.getByRole("heading", { name: reference })).toBeVisible();
