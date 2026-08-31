@@ -1,19 +1,17 @@
+import { tariffTable } from "@/data/tariff-table";
 import type { AcMode, RoomGroupId, TariffSlab } from "@/types";
 
 export const rateQualifier = "per person, per night";
 
-export const tariffSlabs: TariffSlab[] = [
-  { roomGroupId: "single-bed", occupancy: 2, acMode: "ac", ratePerPerson: 1499 },
-  { roomGroupId: "single-bed", occupancy: 2, acMode: "non-ac", ratePerPerson: 1199 },
-  { roomGroupId: "single-bed", occupancy: 3, acMode: "ac", ratePerPerson: 1399 },
-  { roomGroupId: "single-bed", occupancy: 3, acMode: "non-ac", ratePerPerson: 1099 },
-  { roomGroupId: "double-bed", occupancy: 4, acMode: "ac", ratePerPerson: 1399 },
-  { roomGroupId: "double-bed", occupancy: 4, acMode: "non-ac", ratePerPerson: 1199 },
-  { roomGroupId: "double-bed", occupancy: 5, acMode: "ac", ratePerPerson: 1299 },
-  { roomGroupId: "double-bed", occupancy: 5, acMode: "non-ac", ratePerPerson: 1099 },
-  { roomGroupId: "double-bed", occupancy: 6, acMode: "ac", ratePerPerson: 1199 },
-  { roomGroupId: "double-bed", occupancy: 6, acMode: "non-ac", ratePerPerson: 999 },
-];
+// Derived from the canonical paise table so the published rate card and the seeded
+// database cannot drift. These rupee values are for display only; every charge is
+// computed by the server in paise.
+export const tariffSlabs: TariffSlab[] = tariffTable.map((entry) => ({
+  roomGroupId: entry.roomGroupId,
+  occupancy: entry.tariffOccupancy,
+  acMode: entry.acMode,
+  ratePerPerson: entry.ratePerPersonPaise / 100,
+}));
 
 export function tariffOccupancyFor(roomGroupId: RoomGroupId, physicalOccupancy: number): number {
   if (roomGroupId === "single-bed") {

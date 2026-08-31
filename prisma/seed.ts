@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { AcMode, PrismaClient } from "@prisma/client";
+// Relative, not aliased: this file runs under tsx outside the Next.js resolver.
+import { tariffTable } from "../src/data/tariff-table";
 
 const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
@@ -39,18 +41,13 @@ const rooms = [
   ["406", "double-bed"],
 ] as const;
 
-const rates = [
-  ["single-bed", 2, AcMode.AC, 149_900],
-  ["single-bed", 2, AcMode.NON_AC, 119_900],
-  ["single-bed", 3, AcMode.AC, 139_900],
-  ["single-bed", 3, AcMode.NON_AC, 109_900],
-  ["double-bed", 4, AcMode.AC, 139_900],
-  ["double-bed", 4, AcMode.NON_AC, 119_900],
-  ["double-bed", 5, AcMode.AC, 129_900],
-  ["double-bed", 5, AcMode.NON_AC, 109_900],
-  ["double-bed", 6, AcMode.AC, 119_900],
-  ["double-bed", 6, AcMode.NON_AC, 99_900],
-] as const;
+// Seeded from the canonical paise table shared with the published rate card.
+const rates = tariffTable.map((entry) => ({
+  roomGroupId: entry.roomGroupId as string,
+  tariffOccupancy: entry.tariffOccupancy,
+  acMode: entry.acMode === "ac" ? AcMode.AC : AcMode.NON_AC,
+  ratePerPersonPaise: entry.ratePerPersonPaise,
+}));
 
 async function main() {
   await prisma.hotelSettings.upsert({
@@ -106,13 +103,7 @@ async function main() {
   });
 
   await prisma.tariffRate.createMany({
-    data: rates.map(([roomGroupId, tariffOccupancy, acMode, ratePerPersonPaise]) => ({
-      tariffRevisionId: tariffRevision.id,
-      roomGroupId,
-      tariffOccupancy,
-      acMode,
-      ratePerPersonPaise,
-    })),
+    data: rates.map((rate) => ({ tariffRevisionId: tariffRevision.id, ...rate })),
     skipDuplicates: true,
   });
 
