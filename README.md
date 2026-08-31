@@ -38,13 +38,39 @@ npm run dev
 | `npm run dev` | Start the development server |
 | `npm run build` | Create a production build |
 | `npm run lint` | Run ESLint |
-| `npm test` | Run Vitest unit tests |
+| `npm run typecheck` | Type-check |
+| `npm test` | Run every Vitest project |
+| `npm run test:unit` | Run the unit project only (no database) |
+| `npm run test:integration` | Run the database-backed integration project |
 | `npm run test:e2e` | Run the main Playwright flow |
-| `npx tsc --noEmit` | Type-check |
 | `npm run db:validate` | Validate the Prisma schema |
 | `npm run db:migrate` | Create/apply a development migration |
 | `npm run db:migrate:deploy` | Apply versioned migrations in release environments |
 | `npm run db:seed` | Upsert operational configuration and inventory |
+| `npm run db:verify` | Assert the hand-written constraints and indexes exist |
+
+## Tests and CI
+
+Vitest is split into three projects. `unit` is pure logic and needs no database.
+`integration` and `api` need a migrated and seeded PostgreSQL database supplied as
+`TEST_DATABASE_URL`, and they truncate tables — `test/setup/integration.ts` refuses to run
+them against anything that looks like production, or against the same database as
+`DATABASE_URL`.
+
+`.github/workflows/ci.yml` runs five jobs on every push: static analysis, unit tests, a
+migration rehearsal, the database-backed suites, and browser tests. The rehearsal applies
+migrations to an empty database, fails on drift against the Prisma schema, asserts that
+every hand-written CHECK constraint, partial unique index and the room-overlap exclusion
+constraint exists, and proves the seed is idempotent.
+
+Run the full suite locally with a second, disposable database:
+
+```bash
+TEST_DATABASE_URL="postgresql://user:password@127.0.0.1:5432/honeydew_test" npm test
+```
+
+See `docs/environment-variables.md` for the complete environment surface, and
+`docs/manual-launch-blockers.md` for what still needs an owner decision or credential.
 
 ## Database and releases
 
