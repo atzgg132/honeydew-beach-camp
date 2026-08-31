@@ -103,8 +103,8 @@ jobs:
         # migrations no longer produce the schema the application expects.
         run: |
           npx prisma migrate diff \
-            --from-schema-datasource prisma/schema.prisma \
-            --to-schema-datamodel prisma/schema.prisma \
+            --from-config-datasource \
+            --to-schema prisma/schema.prisma \
             --exit-code
 
       - name: Verify database invariants

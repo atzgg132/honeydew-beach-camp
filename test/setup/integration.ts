@@ -31,6 +31,10 @@ function databaseNameOf(url: string): string | null {
   }
 }
 
+// Captured before anything below reassigns DATABASE_URL. Comparing against the live value
+// would compare the test database with itself once the override has happened.
+const runtimeDatabaseUrl = process.env.DATABASE_URL;
+
 export function assertDisposableDatabase(url: string): void {
   const marker = PRODUCTION_MARKERS.find((check) => check());
   if (marker) {
@@ -47,7 +51,7 @@ export function assertDisposableDatabase(url: string): void {
   // If the runtime database is configured, the test database must be a different server or
   // at least a different database name. Same host and same name means they are the same
   // database, whatever the credentials say.
-  const runtime = process.env.DATABASE_URL;
+  const runtime = runtimeDatabaseUrl;
   if (runtime) {
     const runtimeHost = hostOf(runtime);
     const runtimeName = databaseNameOf(runtime);
