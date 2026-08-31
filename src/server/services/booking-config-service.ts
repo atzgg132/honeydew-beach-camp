@@ -5,8 +5,9 @@ import { db } from "@/server/db/client";
 
 export async function loadCurrentBookingConfig() {
   const prisma = db();
-  const [settings, tariffRevision, policyRevision] = await Promise.all([
+  const [settings, roomGroups, tariffRevision, policyRevision] = await Promise.all([
     prisma.hotelSettings.findUnique({ where: { id: "primary" } }),
+    prisma.roomGroup.findMany({ where: { active: true }, orderBy: { id: "asc" } }),
     prisma.tariffRevision.findFirst({
       where: { retiredAt: null, effectiveFrom: { lte: new Date() } },
       orderBy: { revision: "desc" },
@@ -26,7 +27,7 @@ export async function loadCurrentBookingConfig() {
     acMode: rate.acMode === "AC" ? "ac" : "non-ac",
     ratePerPersonPaise: rate.ratePerPersonPaise,
   }));
-  return { settings, tariffRevision, policyRevision, rates };
+  return { settings, roomGroups, tariffRevision, policyRevision, rates };
 }
 
 export async function loadTariffRevision(id: string) {

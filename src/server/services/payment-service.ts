@@ -1,18 +1,11 @@
 import "server-only";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { ApiError } from "@/contracts/errors";
-import { canTransition } from "@/domain/booking/state-machine";
 import { sha256 } from "@/server/crypto";
 import { db } from "@/server/db/client";
 import { devPaymentProvider, requireDevPayments } from "@/server/payments/dev-provider";
-
-function productionReference(): string {
-  const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-  const bytes = randomBytes(12);
-  const characters = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
-  return `HD-${characters.slice(0, 4)}-${characters.slice(4, 8)}-${characters.slice(8, 12)}`;
-}
+import { settleVerifiedPayment } from "@/server/services/payment-settlement";
 
 export async function createDevPaymentOrder(input: { bookingId: string; idempotencyKey: string }) {
   requireDevPayments();
@@ -115,131 +108,38 @@ export async function createDevPaymentOrder(input: { bookingId: string; idempote
   }
 }
 
-export async function succeedDevPayment(orderId: string) {
+export async function succeedDevPayment(orderId: string, sessionBookingId: string) {
   requireDevPayments();
-  const now = new Date();
-  const result = await db().$transaction(
-    async (transaction) => {
-      const initialOrder = await transaction.paymentOrder.findUnique({ where: { id: orderId }, select: { bookingId: true } });
-      if (!initialOrder) throw new ApiError(404, "NOT_FOUND", "The payment order was not found.");
-      await transaction.$queryRaw(Prisma.sql`SELECT "id" FROM "Booking" WHERE "id" = ${initialOrder.bookingId}::uuid FOR UPDATE`);
-      await transaction.$queryRaw(Prisma.sql`SELECT "id" FROM "PaymentOrder" WHERE "id" = ${orderId}::uuid FOR UPDATE`);
-      const order = await transaction.paymentOrder.findUnique({ where: { id: orderId }, include: { booking: true } });
-      if (!order) throw new ApiError(404, "NOT_FOUND", "The payment order was not found.");
-      const providerEventId = `dev-success-${order.id}`;
-      await transaction.webhookEvent.upsert({
-        where: { provider_providerEventId: { provider: "dev", providerEventId } },
-        create: {
-          provider: "dev",
-          providerEventId,
-          eventType: "payment.succeeded",
-          payloadHash: sha256(JSON.stringify({ orderId: order.id, amountPaise: order.amountPaise, currency: order.currency })),
-          signatureValid: true,
-        },
-        update: {},
-      });
-      if (order.status === "PAID" && order.booking.status === "CONFIRMED") {
-        await transaction.webhookEvent.update({
-          where: { provider_providerEventId: { provider: "dev", providerEventId } },
-          data: { processedAt: now, resultCode: "ALREADY_CONFIRMED" },
-        });
-        return { bookingId: order.bookingId, status: "confirmed" as const };
-      }
-      if (order.status === "PAID_UNALLOCATED") {
-        await transaction.webhookEvent.update({
-          where: { provider_providerEventId: { provider: "dev", providerEventId } },
-          data: { processedAt: now, resultCode: "PAID_UNALLOCATED" },
-        });
-        return { bookingId: order.bookingId, status: "paid_unallocated" as const };
-      }
-      if (order.amountPaise !== order.booking.advanceDuePaise || order.currency !== order.booking.currency) {
-        throw new ApiError(409, "PAYMENT_AMOUNT_MISMATCH", "The payment amount does not match the booking.");
-      }
-      const activeReservations = await transaction.roomReservation.count({
-        where: { bookingRoom: { bookingId: order.bookingId }, state: "HELD" },
-      });
-      if (
-        order.booking.status !== "PENDING_PAYMENT" ||
-        !order.booking.holdExpiresAt ||
-        now >= order.booking.holdExpiresAt ||
-        activeReservations === 0
-      ) {
-        await transaction.paymentTransaction.create({
-          data: {
-            paymentOrderId: order.id,
-            provider: "dev",
-            providerPaymentId: `dev_payment_${randomUUID()}`,
-            status: "SUCCEEDED",
-            amountPaise: order.amountPaise,
-            currency: order.currency,
-            providerPaidAt: now,
-          },
-        });
-        await transaction.paymentOrder.update({ where: { id: order.id }, data: { status: "PAID_UNALLOCATED" } });
-        await transaction.bookingEvent.create({
-          data: {
-            bookingId: order.bookingId,
-            type: "PAYMENT_PAID_UNALLOCATED",
-            actorType: "PAYMENT_WEBHOOK",
-            data: { paymentOrderId: order.id },
-          },
-        });
-        await transaction.webhookEvent.update({
-          where: { provider_providerEventId: { provider: "dev", providerEventId } },
-          data: { processedAt: now, resultCode: "PAID_UNALLOCATED" },
-        });
-        return { bookingId: order.bookingId, status: "paid_unallocated" as const };
-      }
-      if (!canTransition(order.booking.status, "CONFIRMED")) {
-        throw new ApiError(409, "INVALID_STATE", "The booking cannot be confirmed.");
-      }
-      let reference = productionReference();
-      while (await transaction.booking.findUnique({ where: { reference }, select: { id: true } })) {
-        reference = productionReference();
-      }
-      await transaction.paymentTransaction.create({
-        data: {
-          paymentOrderId: order.id,
-          provider: "dev",
-          providerPaymentId: `dev_payment_${randomUUID()}`,
-          status: "SUCCEEDED",
-          amountPaise: order.amountPaise,
-          currency: order.currency,
-          providerPaidAt: now,
-        },
-      });
-      await transaction.paymentOrder.update({ where: { id: order.id }, data: { status: "PAID" } });
-      await transaction.roomReservation.updateMany({
-        where: { bookingRoom: { bookingId: order.bookingId }, state: "HELD" },
-        data: { state: "CONFIRMED", expiresAt: null },
-      });
-      await transaction.booking.update({
-        where: { id: order.bookingId },
-        data: {
-          status: "CONFIRMED",
-          reference,
-          advancePaidPaise: order.amountPaise,
-          outstandingPaise: Math.max(0, order.booking.subtotalPaise - order.amountPaise),
-          confirmedAt: now,
-          events: {
-            create: {
-              type: "BOOKING_CONFIRMED",
-              actorType: "PAYMENT_WEBHOOK",
-              data: { paymentOrderId: order.id, paymentHash: sha256(order.providerOrderId ?? order.id) },
-            },
-          },
-        },
-      });
-      await transaction.webhookEvent.update({
-        where: { provider_providerEventId: { provider: "dev", providerEventId } },
-        data: { processedAt: now, resultCode: "CONFIRMED" },
-      });
-      return { bookingId: order.bookingId, status: "confirmed" as const, reference };
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5_000, timeout: 10_000 },
-  );
+  const order = await db().paymentOrder.findUnique({
+    where: { id: orderId },
+    select: { id: true, bookingId: true, provider: true, providerOrderId: true, amountPaise: true, currency: true },
+  });
+  if (!order || !order.providerOrderId) {
+    throw new ApiError(404, "NOT_FOUND", "The payment order was not found.");
+  }
+  // The caller's checkout session must own this order. Reported as not-found rather than
+  // forbidden so the endpoint does not confirm that someone else's order id exists.
+  if (order.bookingId !== sessionBookingId) {
+    throw new ApiError(404, "NOT_FOUND", "The payment order was not found.");
+  }
+
+  // The simulator produces the same shape a real provider adapter produces after verifying a
+  // webhook, and settlement is shared. There is deliberately no separate development
+  // settlement path: the code that confirms a booking is the code that will run in
+  // production.
+  const result = await settleVerifiedPayment({
+    provider: order.provider,
+    providerEventId: `dev-success-${order.id}`,
+    eventType: "payment.succeeded",
+    providerOrderId: order.providerOrderId,
+    providerPaymentId: `dev_payment_${randomUUID()}`,
+    amountPaise: order.amountPaise,
+    currency: order.currency as "INR",
+    paidAt: new Date(),
+  });
+
   if (result.status === "paid_unallocated") {
     throw new ApiError(409, "PAID_UNALLOCATED", "Payment arrived after the room hold expired. The hotel must review it.");
   }
-  return result;
+  return { bookingId: result.bookingId, status: "confirmed" as const, reference: result.reference };
 }

@@ -10,6 +10,8 @@ export interface ProviderOrder {
 }
 
 export interface VerifiedPaymentEvent {
+  /** Which adapter verified this event. Scopes every lookup and dedupe key. */
+  provider: string;
   providerEventId: string;
   eventType: string;
   providerOrderId: string;

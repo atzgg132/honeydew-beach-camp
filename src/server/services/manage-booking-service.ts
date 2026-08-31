@@ -5,12 +5,14 @@ import type { BookingContactInput, CompositionInput, QuoteRequestInput, RoomInte
 import { ApiError } from "@/contracts/errors";
 import { quoteCancellationPaise } from "@/domain/booking/cancellation";
 import { priceBookingPaise } from "@/domain/booking/pricing";
+import { canTransition } from "@/domain/booking/state-machine";
 import { distributeGuests } from "@/lib/booking/distribute";
 import { istDateTime } from "@/lib/dates";
 import { last10Digits } from "@/lib/format";
 import { phoneLookupHash, sha256, signPayload, verifyPayload } from "@/server/crypto";
 import { db } from "@/server/db/client";
 import { customerBookingInclude, toCustomerBooking } from "@/server/dto";
+import { isRoomFree, lockRoomsForGroups } from "@/server/services/allocation";
 import { loadTariffRevision } from "@/server/services/booking-config-service";
 
 const MUTATION_QUOTE_TTL_SECONDS = 5 * 60;
@@ -262,6 +264,46 @@ export async function applyAcUpgrade(bookingId: string, roomId: string, token: s
     if (price.subtotalPaise !== payload.subtotalPaise) throw new ApiError(409, "QUOTE_CHANGED", "The upgrade price has changed.");
     const room = price.rooms.find((candidate) => candidate.clientId === roomId);
     if (!room) throw new ApiError(404, "ROOM_NOT_FOUND", "The room was not found.");
+
+    // Selling an upgrade says nothing about whether the physical room can deliver it. The
+    // reservation must end up on a room that actually supports air-conditioning, otherwise
+    // the guest is charged for something the camp cannot provide.
+    const reservation = await transaction.roomReservation.findFirst({
+      where: { bookingRoomId: roomId, state: { in: ["HELD", "CONFIRMED"] } },
+      select: { id: true, roomId: true, checkIn: true, checkOut: true, room: { select: { supportsAc: true, roomGroupId: true } } },
+    });
+    if (!reservation) throw new ApiError(409, "INVALID_STATE", "This room has no active reservation.");
+
+    if (!reservation.room.supportsAc) {
+      // Try to move the stay to an air-conditioned room in the same group. The exclusion
+      // constraint arbitrates if two upgrades race for the same room.
+      const candidates = await lockRoomsForGroups(transaction, [reservation.room.roomGroupId]);
+      let moved = false;
+      for (const candidate of candidates) {
+        if (!candidate.supportsAc || candidate.id === reservation.roomId) continue;
+        const free = await isRoomFree(transaction, {
+          roomId: candidate.id,
+          checkIn: reservation.checkIn,
+          checkOut: reservation.checkOut,
+          ignoreReservationId: reservation.id,
+        });
+        if (!free) continue;
+        await transaction.roomReservation.update({
+          where: { id: reservation.id },
+          data: { roomId: candidate.id },
+        });
+        moved = true;
+        break;
+      }
+      if (!moved) {
+        throw new ApiError(
+          409,
+          "AC_NOT_AVAILABLE",
+          "No air-conditioned room is free for these dates. Please call the property.",
+        );
+      }
+    }
+
     const deltaPaise = price.subtotalPaise - booking.subtotalPaise;
     await transaction.bookingRoom.update({
       where: { id: roomId },
@@ -300,6 +342,9 @@ export async function cancelManagedBooking(bookingId: string, idempotencyKey: st
       return toCustomerBooking(await transaction.booking.findUniqueOrThrow({ where: { id: bookingId }, include: customerBookingInclude }));
     }
     assertSelfService(record);
+    if (!canTransition(record.status, "CANCELLED")) {
+      throw new ApiError(409, "INVALID_STATE", "This booking cannot be cancelled.");
+    }
     const hours = (istDateTime(dateOnly(record.checkIn), "11:00").getTime() - Date.now()) / 3_600_000;
     const quote = quoteCancellationPaise(hours, record.advancePaidPaise);
     const now = new Date();
@@ -318,7 +363,10 @@ export async function cancelManagedBooking(bookingId: string, idempotencyKey: st
         deductionBasisPoints: quote.deductionBasisPoints,
         deductionPaise: quote.deductionPaise,
         refundablePaise: quote.refundablePaise,
-        refundStatus: "PENDING_HOTEL_REVIEW",
+        // Nothing to refund means nothing for staff to review. Marking these
+        // PENDING_HOTEL_REVIEW filled the refund queue with zero-value rows that could
+        // never be actioned, which is how a real refund gets lost in the noise.
+        refundStatus: quote.refundablePaise > 0 ? "PENDING_HOTEL_REVIEW" : "NOT_REQUIRED",
         cancelledAt: now,
       },
     });
