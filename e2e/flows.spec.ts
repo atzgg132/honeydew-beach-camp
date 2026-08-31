@@ -179,8 +179,13 @@ test.describe("manage booking", () => {
     if (await upgradeToggle.isVisible()) await upgradeToggle.click();
     await page.getByRole("button", { name: /Upgrade Room 1/ }).click();
     await page.getByRole("button", { name: "Confirm upgrade" }).click();
-    const after = await balance.textContent();
-    expect(after).not.toEqual(before);
+    // textContent() reads once and does not retry. The balance only changes after the
+    // server has repriced and the client has re-rendered, so assert on the locator and let
+    // Playwright poll; reading immediately was a race that happened to pass locally.
+    await expect(balance).not.toHaveText(before ?? "");
+    // A one-way AC upgrade on a single-bed room raises the outstanding balance by the
+    // difference between the non-AC and AC tier-two rates.
+    await expect(balance).toHaveText("₹1,139");
   });
 
   test("shows a server cancellation quote and cancels atomically", async ({ page }) => {
