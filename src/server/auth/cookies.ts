@@ -3,32 +3,46 @@ import { timingSafeEqual } from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
 import { ApiError } from "@/contracts/errors";
 
+export type SessionKind = "checkout" | "manage" | "admin";
+
 export const cookies = {
   checkout: "hd_checkout",
   checkoutCsrf: "hd_checkout_csrf",
   manage: "hd_manage",
   manageCsrf: "hd_manage_csrf",
+  admin: "hd_admin",
+  adminCsrf: "hd_admin_csrf",
 } as const;
+
+const sessionCookie: Record<SessionKind, string> = {
+  checkout: cookies.checkout,
+  manage: cookies.manage,
+  admin: cookies.admin,
+};
+
+const csrfCookie: Record<SessionKind, string> = {
+  checkout: cookies.checkoutCsrf,
+  manage: cookies.manageCsrf,
+  admin: cookies.adminCsrf,
+};
 
 const secure = process.env.NODE_ENV === "production";
 
 export function setOpaqueSessionCookies(
   response: NextResponse,
-  kind: "checkout" | "manage",
+  kind: SessionKind,
   token: string,
   csrf: string,
   expires: Date,
 ) {
-  const sessionName = kind === "checkout" ? cookies.checkout : cookies.manage;
-  const csrfName = kind === "checkout" ? cookies.checkoutCsrf : cookies.manageCsrf;
-  response.cookies.set(sessionName, token, {
+  response.cookies.set(sessionCookie[kind], token, {
     httpOnly: true,
     secure,
     sameSite: "lax",
     path: "/",
     expires,
   });
-  response.cookies.set(csrfName, csrf, {
+  response.cookies.set(csrfCookie[kind], csrf, {
     httpOnly: false,
     secure,
     sameSite: "strict",
@@ -37,11 +51,9 @@ export function setOpaqueSessionCookies(
   });
 }
 
-export function clearSessionCookies(response: NextResponse, kind: "checkout" | "manage") {
-  const sessionName = kind === "checkout" ? cookies.checkout : cookies.manage;
-  const csrfName = kind === "checkout" ? cookies.checkoutCsrf : cookies.manageCsrf;
-  response.cookies.set(sessionName, "", { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 0 });
-  response.cookies.set(csrfName, "", { httpOnly: false, secure, sameSite: "strict", path: "/", maxAge: 0 });
+export function clearSessionCookies(response: NextResponse, kind: SessionKind) {
+  response.cookies.set(sessionCookie[kind], "", { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 0 });
+  response.cookies.set(csrfCookie[kind], "", { httpOnly: false, secure, sameSite: "strict", path: "/", maxAge: 0 });
 }
 
 /**
@@ -55,11 +67,10 @@ function safeEqual(left: string, right: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-export function assertMutationSecurity(request: NextRequest, kind: "checkout" | "manage") {
-  const expectedCookie = kind === "checkout" ? cookies.checkoutCsrf : cookies.manageCsrf;
-  const csrfCookie = request.cookies.get(expectedCookie)?.value;
+export function assertMutationSecurity(request: NextRequest, kind: SessionKind) {
+  const csrfCookieValue = request.cookies.get(csrfCookie[kind])?.value;
   const csrfHeader = request.headers.get("x-csrf-token");
-  if (!csrfCookie || !csrfHeader || !safeEqual(csrfCookie, csrfHeader)) {
+  if (!csrfCookieValue || !csrfHeader || !safeEqual(csrfCookieValue, csrfHeader)) {
     throw new ApiError(403, "CSRF_FAILED", "The request could not be verified.");
   }
   const origin = request.headers.get("origin");
@@ -75,9 +86,19 @@ export function assertMutationSecurity(request: NextRequest, kind: "checkout" | 
   }
 }
 
-export function readSessionToken(request: NextRequest, kind: "checkout" | "manage") {
-  const name = kind === "checkout" ? cookies.checkout : cookies.manage;
-  const value = request.cookies.get(name)?.value;
-  if (!value) throw new ApiError(401, `${kind.toUpperCase()}_SESSION_REQUIRED`, "Verification is required.");
+export function readSessionToken(request: NextRequest, kind: SessionKind) {
+  const value = request.cookies.get(sessionCookie[kind])?.value;
+  if (!value) {
+    const message = kind === "admin" ? "Sign in is required." : "Verification is required.";
+    throw new ApiError(401, `${kind.toUpperCase()}_SESSION_REQUIRED`, message);
+  }
   return value;
+}
+
+export function sessionCookieName(kind: SessionKind) {
+  return sessionCookie[kind];
+}
+
+export function csrfCookieName(kind: SessionKind) {
+  return csrfCookie[kind];
 }

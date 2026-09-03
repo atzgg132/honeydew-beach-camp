@@ -81,7 +81,7 @@ See blocker **B3**. WhatsApp variables are listed under blocker **B8** and are n
 
 | Name | Required | Purpose |
 |---|---|---|
-| `ADMIN_BOOTSTRAP_EMAIL` | optional | Read once by `npm run admin:bootstrap` to create the first administrator. Not needed afterwards; the command refuses to run if an administrator already exists. |
+| `ADMIN_BOOTSTRAP_EMAIL` | optional | Read once by `npm run admin:bootstrap` to create the first administrator. Not needed afterwards; the command refuses to run if an administrator already exists. The script prints a single-use `/admin/accept` link. |
 
 ## Set by the platform
 

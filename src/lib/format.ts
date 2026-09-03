@@ -6,6 +6,10 @@ export function formatInr(amount: number): string {
   }).format(Math.round(amount));
 }
 
+export function formatInrPaise(paise: number): string {
+  return formatInr(paise / 100);
+}
+
 export function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
 }

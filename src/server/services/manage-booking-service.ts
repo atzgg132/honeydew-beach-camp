@@ -17,6 +17,8 @@ import { loadTariffRevision } from "@/server/services/booking-config-service";
 
 const MUTATION_QUOTE_TTL_SECONDS = 5 * 60;
 
+export type BookingMutationActor = { kind: "customer" } | { kind: "admin"; id: string };
+
 function dateOnly(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -26,6 +28,20 @@ function assertSelfService(record: { status: string; checkIn: Date }) {
   if (new Date() >= istDateTime(dateOnly(record.checkIn), "11:00")) {
     throw new ApiError(409, "SELF_SERVICE_CLOSED", "This stay can no longer be changed online.");
   }
+}
+
+function assertCanMutate(record: { status: string; checkIn: Date }, actor: BookingMutationActor) {
+  if (actor.kind === "admin") {
+    if (record.status !== "CONFIRMED") throw new ApiError(409, "INVALID_STATE", "This booking cannot be changed.");
+    return;
+  }
+  assertSelfService(record);
+}
+
+function actorFields(actor: BookingMutationActor) {
+  return actor.kind === "admin"
+    ? { actorType: "ADMIN" as const, actorId: actor.id }
+    : { actorType: "CUSTOMER" as const };
 }
 
 async function getRecord(bookingId: string) {
@@ -52,7 +68,12 @@ export async function getManagedBooking(bookingId: string) {
   return toCustomerBooking(await getRecord(bookingId));
 }
 
-export async function updateManagedContact(bookingId: string, contact: BookingContactInput, idempotencyKey: string) {
+export async function updateManagedContact(
+  bookingId: string,
+  contact: BookingContactInput,
+  idempotencyKey: string,
+  actor: BookingMutationActor = { kind: "customer" },
+) {
   const requestHash = sha256(JSON.stringify(contact));
   return db().$transaction(async (transaction) => {
     await lockBooking(transaction, bookingId);
@@ -63,7 +84,7 @@ export async function updateManagedContact(bookingId: string, contact: BookingCo
     }
     const record = await transaction.booking.findUnique({ where: { id: bookingId } });
     if (!record) throw new ApiError(404, "NOT_FOUND", "The booking was not found.");
-    assertSelfService(record);
+    assertCanMutate(record, actor);
     const phone = `+91${last10Digits(contact.phone)}`;
     await transaction.booking.update({
       where: { id: bookingId },
@@ -73,7 +94,7 @@ export async function updateManagedContact(bookingId: string, contact: BookingCo
         contactPhoneLookupHash: phoneLookupHash(phone),
         contactEmail: contact.email.toLowerCase(),
         events: {
-          create: { type: "CONTACT_UPDATED", actorType: "CUSTOMER", idempotencyKey, data: { fields: ["name", "phone", "email"], requestHash } },
+          create: { type: "CONTACT_UPDATED", ...actorFields(actor), idempotencyKey, data: { fields: ["name", "phone", "email"], requestHash } },
         },
       },
     });
@@ -153,9 +174,13 @@ function readMutation(token: string, purpose: "guest-change" | "ac-upgrade") {
   return result.data;
 }
 
-export async function quoteGuestChange(bookingId: string, composition: CompositionInput) {
+export async function quoteGuestChange(
+  bookingId: string,
+  composition: CompositionInput,
+  actor: BookingMutationActor = { kind: "customer" },
+) {
   const record = await getRecord(bookingId);
-  assertSelfService(record);
+  assertCanMutate(record, actor);
   const rooms = rebalanceRooms(record.rooms, composition);
   if (!rooms) throw new ApiError(422, "GROUP_CHANGE_REQUIRED", "This change needs a different mix of rooms.");
   const { price } = await priceExistingBooking(record, rooms);
@@ -166,7 +191,12 @@ export async function quoteGuestChange(bookingId: string, composition: Compositi
   };
 }
 
-export async function applyGuestChange(bookingId: string, token: string, idempotencyKey: string) {
+export async function applyGuestChange(
+  bookingId: string,
+  token: string,
+  idempotencyKey: string,
+  actor: BookingMutationActor = { kind: "customer" },
+) {
   const payload = readMutation(token, "guest-change");
   if (payload.bookingId !== bookingId || !payload.composition) throw new ApiError(400, "INVALID_QUOTE", "The change quote is invalid.");
   const composition = payload.composition;
@@ -180,7 +210,7 @@ export async function applyGuestChange(bookingId: string, token: string, idempot
     }
     const record = await transaction.booking.findUnique({ where: { id: bookingId }, include: customerBookingInclude });
     if (!record) throw new ApiError(404, "NOT_FOUND", "The booking was not found.");
-    assertSelfService(record);
+    assertCanMutate(record, actor);
     const rooms = rebalanceRooms(record.rooms, composition);
     if (!rooms) throw new ApiError(422, "GROUP_CHANGE_REQUIRED", "This change needs a different mix of rooms.");
     const { price } = await priceExistingBooking(record, rooms);
@@ -210,16 +240,20 @@ export async function applyGuestChange(bookingId: string, token: string, idempot
         children5To10: composition.children5to10,
         subtotalPaise: price.subtotalPaise,
         outstandingPaise: Math.max(0, price.subtotalPaise - record.advancePaidPaise),
-        events: { create: { type: "GUESTS_CHANGED", actorType: "CUSTOMER", idempotencyKey, deltaPaise: price.subtotalPaise - record.subtotalPaise, data: { beforeTotalPaise: record.subtotalPaise, afterTotalPaise: price.subtotalPaise, requestHash } } },
+        events: { create: { type: "GUESTS_CHANGED", ...actorFields(actor), idempotencyKey, deltaPaise: price.subtotalPaise - record.subtotalPaise, data: { beforeTotalPaise: record.subtotalPaise, afterTotalPaise: price.subtotalPaise, requestHash } } },
       },
     });
     return toCustomerBooking(await transaction.booking.findUniqueOrThrow({ where: { id: bookingId }, include: customerBookingInclude }));
   });
 }
 
-export async function quoteAcUpgrade(bookingId: string, roomId: string) {
+export async function quoteAcUpgrade(
+  bookingId: string,
+  roomId: string,
+  actor: BookingMutationActor = { kind: "customer" },
+) {
   const record = await getRecord(bookingId);
-  assertSelfService(record);
+  assertCanMutate(record, actor);
   const target = record.rooms.find((room) => room.id === roomId);
   if (!target) throw new ApiError(404, "ROOM_NOT_FOUND", "The room was not found.");
   if (target.acMode === "AC") throw new ApiError(409, "ALREADY_AC", "This room already includes air-conditioning.");
@@ -237,7 +271,13 @@ export async function quoteAcUpgrade(bookingId: string, roomId: string) {
   };
 }
 
-export async function applyAcUpgrade(bookingId: string, roomId: string, token: string, idempotencyKey: string) {
+export async function applyAcUpgrade(
+  bookingId: string,
+  roomId: string,
+  token: string,
+  idempotencyKey: string,
+  actor: BookingMutationActor = { kind: "customer" },
+) {
   const payload = readMutation(token, "ac-upgrade");
   if (payload.bookingId !== bookingId || payload.roomId !== roomId) throw new ApiError(400, "INVALID_QUOTE", "The upgrade quote is invalid.");
   const requestHash = sha256(token);
@@ -250,7 +290,7 @@ export async function applyAcUpgrade(bookingId: string, roomId: string, token: s
     }
     const booking = await transaction.booking.findUnique({ where: { id: bookingId }, include: customerBookingInclude });
     if (!booking) throw new ApiError(404, "NOT_FOUND", "The booking was not found.");
-    assertSelfService(booking);
+    assertCanMutate(booking, actor);
     const target = booking.rooms.find((candidate) => candidate.id === roomId);
     if (!target) throw new ApiError(404, "ROOM_NOT_FOUND", "The room was not found.");
     if (target.acMode === "AC") throw new ApiError(409, "ALREADY_AC", "This room already includes air-conditioning.");
@@ -314,22 +354,29 @@ export async function applyAcUpgrade(bookingId: string, roomId: string, token: s
       data: {
         subtotalPaise: price.subtotalPaise,
         outstandingPaise: Math.max(0, price.subtotalPaise - booking.advancePaidPaise),
-        events: { create: { type: "AC_UPGRADED", actorType: "CUSTOMER", idempotencyKey, deltaPaise, data: { roomId, beforeTotalPaise: booking.subtotalPaise, afterTotalPaise: price.subtotalPaise, requestHash } } },
+        events: { create: { type: "AC_UPGRADED", ...actorFields(actor), idempotencyKey, deltaPaise, data: { roomId, beforeTotalPaise: booking.subtotalPaise, afterTotalPaise: price.subtotalPaise, requestHash } } },
       },
     });
     return toCustomerBooking(await transaction.booking.findUniqueOrThrow({ where: { id: bookingId }, include: customerBookingInclude }));
   });
 }
 
-export async function getCancellationQuote(bookingId: string) {
+export async function getCancellationQuote(
+  bookingId: string,
+  actor: BookingMutationActor = { kind: "customer" },
+) {
   const record = await getRecord(bookingId);
-  assertSelfService(record);
+  assertCanMutate(record, actor);
   const checkInInstant = istDateTime(dateOnly(record.checkIn), "11:00");
   const hours = (checkInInstant.getTime() - Date.now()) / 3_600_000;
   return quoteCancellationPaise(hours, record.advancePaidPaise);
 }
 
-export async function cancelManagedBooking(bookingId: string, idempotencyKey: string) {
+export async function cancelManagedBooking(
+  bookingId: string,
+  idempotencyKey: string,
+  actor: BookingMutationActor = { kind: "customer" },
+) {
   return db().$transaction(async (transaction) => {
     await lockBooking(transaction, bookingId);
     const existing = await transaction.bookingEvent.findFirst({ where: { bookingId, type: "BOOKING_CANCELLED", idempotencyKey } });
@@ -341,7 +388,7 @@ export async function cancelManagedBooking(bookingId: string, idempotencyKey: st
     if (record.status === "CANCELLED") {
       return toCustomerBooking(await transaction.booking.findUniqueOrThrow({ where: { id: bookingId }, include: customerBookingInclude }));
     }
-    assertSelfService(record);
+    assertCanMutate(record, actor);
     if (!canTransition(record.status, "CANCELLED")) {
       throw new ApiError(409, "INVALID_STATE", "This booking cannot be cancelled.");
     }
@@ -376,7 +423,7 @@ export async function cancelManagedBooking(bookingId: string, idempotencyKey: st
         status: "CANCELLED",
         cancelledAt: now,
         outstandingPaise: 0,
-        events: { create: { type: "BOOKING_CANCELLED", actorType: "CUSTOMER", idempotencyKey, data: { slabId: quote.slabId, deductionPaise: quote.deductionPaise, refundablePaise: quote.refundablePaise } } },
+        events: { create: { type: "BOOKING_CANCELLED", ...actorFields(actor), idempotencyKey, data: { slabId: quote.slabId, deductionPaise: quote.deductionPaise, refundablePaise: quote.refundablePaise } } },
       },
     });
     return toCustomerBooking(await transaction.booking.findUniqueOrThrow({ where: { id: bookingId }, include: customerBookingInclude }));
