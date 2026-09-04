@@ -18,10 +18,11 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:validate": "prisma validate",
-    "test:e2e": "playwright test e2e/flows.spec.ts",
+    "test:e2e": "playwright test e2e/flows.spec.ts e2e/admin.spec.ts",
     "test:visual": "playwright test e2e/visual.spec.ts",
     "optimize:media": "node scripts/optimize-media.mjs",
-    "db:verify": "node scripts/verify-db-constraints.mjs"
+    "db:verify": "node scripts/verify-db-constraints.mjs",
+    "admin:bootstrap": "tsx scripts/admin-bootstrap.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

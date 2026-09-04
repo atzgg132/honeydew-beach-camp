@@ -1,11 +1,11 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
-import { randomBytes } from "node:crypto";
 import { ApiError } from "@/contracts/errors";
 import { canTransition } from "@/domain/booking/state-machine";
 import { sha256 } from "@/server/crypto";
 import { db } from "@/server/db/client";
 import type { VerifiedPaymentEvent } from "@/server/payments/provider";
+import { allocateReference } from "@/server/services/reference";
 
 /**
  * Settlement: turning a verified payment into a confirmed booking.
@@ -33,30 +33,6 @@ export type SettlementOutcome =
   | { status: "confirmed"; bookingId: string; reference: string }
   | { status: "already_confirmed"; bookingId: string; reference: string | null }
   | { status: "paid_unallocated"; bookingId: string };
-
-/**
- * Booking references are shown to guests, read over the phone, and written on paper. The
- * alphabet is Crockford base32 without I, L, O or U, so it cannot be misread as digits and
- * cannot accidentally spell anything. 32 characters divides 256 exactly, so taking a byte
- * modulo the alphabet length is unbiased.
- */
-function generateReference(): string {
-  const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-  const bytes = randomBytes(12);
-  const characters = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
-  return `HD-${characters.slice(0, 4)}-${characters.slice(4, 8)}-${characters.slice(8, 12)}`;
-}
-
-async function allocateReference(transaction: Prisma.TransactionClient): Promise<string> {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const reference = generateReference();
-    const clash = await transaction.booking.findUnique({ where: { reference }, select: { id: true } });
-    if (!clash) return reference;
-  }
-  // 32^12 of space; eight collisions in a row means something is badly wrong, and silently
-  // looping forever inside a serializable transaction would be worse than failing.
-  throw new ApiError(500, "REFERENCE_ALLOCATION_FAILED", "Could not allocate a booking reference.");
-}
 
 /**
  * Applies a verified payment.

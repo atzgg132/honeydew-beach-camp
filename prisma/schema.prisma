@@ -254,6 +254,7 @@ model PaymentOrder {
 
   @@unique([provider, providerOrderId])
   @@index([bookingId, status])
+  @@index([status])
 }
 
 model PaymentTransaction {
@@ -331,6 +332,8 @@ model Cancellation {
   cancelledAt             DateTime     @db.Timestamptz(3)
   approvedAt              DateTime?    @db.Timestamptz(3)
   processedAt             DateTime?    @db.Timestamptz(3)
+
+  @@index([refundStatus])
 }
 
 model BookingEvent {
@@ -363,6 +366,43 @@ model IdempotencyRequest {
 
   @@unique([scope, keyHash])
   @@index([expiresAt])
+}
+
+model AdminUser {
+  id           String            @id @default(uuid()) @db.Uuid
+  email        String            @unique
+  passwordHash String?
+  createdAt    DateTime          @default(now()) @db.Timestamptz(3)
+  acceptedAt   DateTime?         @db.Timestamptz(3)
+  disabledAt   DateTime?         @db.Timestamptz(3)
+  sessions     AdminSession[]
+  invitations  AdminInvitation[]
+}
+
+model AdminInvitation {
+  id          String     @id @default(uuid()) @db.Uuid
+  email       String
+  tokenHash   String     @unique @db.Char(64)
+  expiresAt   DateTime   @db.Timestamptz(3)
+  consumedAt  DateTime?  @db.Timestamptz(3)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  adminUserId String     @db.Uuid
+  adminUser   AdminUser  @relation(fields: [adminUserId], references: [id])
+
+  @@index([email, consumedAt])
+}
+
+model AdminSession {
+  id          String     @id @default(uuid()) @db.Uuid
+  adminUserId String     @db.Uuid
+  adminUser   AdminUser  @relation(fields: [adminUserId], references: [id])
+  tokenHash   String     @unique @db.Char(64)
+  csrfHash    String     @db.Char(64)
+  expiresAt   DateTime   @db.Timestamptz(3)
+  revokedAt   DateTime?  @db.Timestamptz(3)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+
+  @@index([adminUserId, expiresAt])
 }
 
 model RateLimitBucket {

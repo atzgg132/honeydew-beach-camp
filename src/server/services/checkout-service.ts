@@ -5,34 +5,18 @@ import type { BookingContactInput } from "@/contracts/booking";
 import { ApiError } from "@/contracts/errors";
 import { priceBookingPaise } from "@/domain/booking/pricing";
 import { validateRoomIntent } from "@/domain/booking/validation";
-import { last10Digits } from "@/lib/format";
-import { deriveToken, phoneLookupHash, sha256 } from "@/server/crypto";
+import { deriveToken, sha256 } from "@/server/crypto";
 import { db } from "@/server/db/client";
 import { customerBookingInclude, toCustomerBooking } from "@/server/dto";
 import { allocateRooms } from "@/server/services/allocation";
 import { dateOnlyToUtc } from "@/server/services/availability-service";
 import { loadCurrentBookingConfig } from "@/server/services/booking-config-service";
+import { bookingMoneyFields, bookingRoomCreateData, contactFields, reservationRows } from "@/server/services/booking-record";
 import { createQuote, readQuoteToken } from "@/server/services/quote-service";
+import { withSerializableRetry } from "@/server/services/serializable";
 
 function requestHash(quoteToken: string, contact: BookingContactInput) {
   return sha256(JSON.stringify({ quoteToken, contact }));
-}
-
-function normalizePhone(value: string): string {
-  return `+91${last10Digits(value)}`;
-}
-
-async function withSerializableRetry<T>(operation: () => Promise<T>): Promise<T> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      return await operation();
-    } catch (error) {
-      const code = (error as { code?: string })?.code;
-      if (attempt === 2 || (code !== "P2034" && code !== "40001" && code !== "40P01")) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 20 + attempt * 35));
-    }
-  }
-  throw new ApiError(409, "SERIALIZATION_CONFLICT", "Please try again.");
 }
 
 export async function createHold(input: {
@@ -91,63 +75,35 @@ export async function createHold(input: {
         const expiresAt = new Date(now.getTime() + config.policyRevision.holdTtlMinutes * 60_000);
         const bookingId = randomUUID();
         const roomIds = price.rooms.map(() => randomUUID());
-        const phone = normalizePhone(input.contact.phone);
         await transaction.booking.create({
           data: {
             id: bookingId,
-            source: "ONLINE",
-            status: "PENDING_PAYMENT",
-            checkIn: start,
-            checkOut: end,
-            holdExpiresAt: expiresAt,
-            contactFullName: input.contact.fullName,
-            contactPhoneE164: phone,
-            contactPhoneLookupHash: phoneLookupHash(phone),
-            contactEmail: input.contact.email.toLowerCase(),
-            adults: intent.composition.adults,
-            childrenUnder5: intent.composition.childrenUnder5,
-            children5To10: intent.composition.children5to10,
-            currency: "INR",
-            tariffRevisionId: config.tariffRevision.id,
-            policyRevisionId: config.policyRevision.id,
-            nights: price.nights,
-            subtotalPaise: price.subtotalPaise,
-            advanceBasisPoints: price.advanceBasisPoints,
-            advanceDuePaise: price.advancePaise,
-            outstandingPaise: price.subtotalPaise,
-            rooms: {
-              create: price.rooms.map((room, index) => ({
-                id: roomIds[index],
-                roomGroupId: room.roomGroupId,
-                roomGroupNameSnapshot: groupNames.get(room.roomGroupId) ?? room.roomGroupId,
-                displayOrder: index,
-                acMode: room.acMode === "ac" ? "AC" : "NON_AC",
-                adults: room.composition.adults,
-                childrenUnder5: room.composition.childrenUnder5,
-                children5To10: room.composition.children5to10,
-                physicalOccupancy: room.physicalOccupancy,
-                billingHalfUnits: room.billingHalfUnits,
-                tariffOccupancy: room.tariffOccupancy,
-                ratePerPersonPaise: room.ratePerPersonPaise,
-                nightlyTotalPaise: room.nightlyTotalPaise,
-                nights: room.nights,
-                stayTotalPaise: room.stayTotalPaise,
-              })),
-            },
+            ...contactFields(input.contact),
+            ...bookingMoneyFields(price, intent.composition, {
+              source: "ONLINE",
+              status: "PENDING_PAYMENT",
+              tariffRevisionId: config.tariffRevision.id,
+              policyRevisionId: config.policyRevision.id,
+              checkIn: start,
+              checkOut: end,
+              holdExpiresAt: expiresAt,
+              outstandingPaise: price.subtotalPaise,
+            }),
+            rooms: { create: bookingRoomCreateData(price, groupNames, roomIds) },
             events: {
               create: { type: "HOLD_CREATED", actorType: "CUSTOMER", data: { expiresAt: expiresAt.toISOString() } },
             },
           },
         });
         await transaction.roomReservation.createMany({
-          data: roomIds.map((bookingRoomId, index) => ({
-            roomId: assigned[index].id,
-            bookingRoomId,
+          data: reservationRows({
+            roomIds,
+            assigned,
             checkIn: start,
             checkOut: end,
             state: "HELD",
             expiresAt,
-          })),
+          }),
         });
 
         const token = deriveToken("checkout-session", bookingId, input.idempotencyKey);

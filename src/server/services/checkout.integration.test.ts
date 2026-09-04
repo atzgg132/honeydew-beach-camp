@@ -19,8 +19,12 @@ async function cleanBusinessData() {
     prisma.idempotencyRequest.deleteMany(),
     prisma.bookingEvent.deleteMany(),
     prisma.roomReservation.deleteMany(),
+    prisma.roomBlock.deleteMany(),
     prisma.bookingRoom.deleteMany(),
     prisma.booking.deleteMany(),
+    prisma.adminSession.deleteMany(),
+    prisma.adminInvitation.deleteMany(),
+    prisma.adminUser.deleteMany(),
   ]);
 }
 
