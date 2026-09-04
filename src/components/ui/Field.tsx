@@ -52,6 +52,28 @@ export function TextInput({
   );
 }
 
+export function Select({
+  error,
+  className,
+  children,
+  ...props
+}: ComponentProps<"select"> & { error?: boolean }) {
+  return (
+    <select
+      aria-invalid={error || undefined}
+      aria-describedby={error && props.id ? `${props.id}-error` : undefined}
+      className={cn(
+        "h-11 w-full rounded-[6px] border bg-cream-raised px-3 text-base text-ink",
+        error ? "border-danger" : "border-line focus:border-honey",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </select>
+  );
+}
+
 export function TextArea({
   error,
   className,

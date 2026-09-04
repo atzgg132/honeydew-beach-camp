@@ -50,7 +50,7 @@ async function signIn(page: import("@playwright/test").Page) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Desk", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
 }
 
 test.describe("admin desk", () => {
@@ -65,8 +65,11 @@ test.describe("admin desk", () => {
     test.skip(!backendConfigured, "DATABASE_URL is required");
     await ensureAdmin();
     await signIn(page);
+    await expect(page.getByRole("navigation", { name: "Desk" }).getByRole("link", { name: "Today" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Desk" }).getByRole("link", { name: "New", exact: true })).toHaveCount(0);
     await page.goto("/admin/bookings");
     await expect(page.getByRole("heading", { name: "Bookings", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "New booking" })).toBeVisible();
     await page.goto("/admin/bookings/new");
     await expect(page.getByRole("heading", { name: "New booking" })).toBeVisible();
     await page.getByRole("button", { name: "Walk-in" }).click();
@@ -138,6 +141,80 @@ test.describe("admin desk", () => {
     await page.goto("/admin/bookings");
     await expect(page.getByRole("heading", { name: "Bookings", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "New booking" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Desk" }).getByRole("link", { name: "Today" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Desk" }).getByRole("link", { name: "New", exact: true })).toHaveCount(0);
+  });
+
+  test("incomplete filters stay on the page and say why", async ({ page }) => {
+    test.skip(!backendConfigured, "DATABASE_URL is required");
+    await ensureAdmin();
+    await signIn(page);
+    await page.goto("/admin/bookings");
+    await page.getByLabel("Phone").fill("98765001");
+    await page.getByRole("button", { name: "Filter" }).click();
+    await expect(page.getByText("Phone needs the last 10 digits.")).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/bookings$/);
+    await page.getByLabel("Phone").fill("");
+    await page.getByText("More filters").click();
+    await fillDate(page, "From", stay(20).checkIn);
+    await page.getByRole("button", { name: "Filter" }).click();
+    await expect(page.getByText("Set both dates or neither.")).toBeVisible();
+  });
+
+  test("dismissing cancel does not claim the stay was cancelled", async ({ page }) => {
+    test.skip(!backendConfigured, "DATABASE_URL is required");
+    await ensureAdmin();
+    await signIn(page);
+    const { checkIn, checkOut } = stay(test.info().project.name === "mobile" ? 140 : 130);
+    await page.goto("/admin/bookings/new");
+    await fillDate(page, "Check-in", checkIn);
+    await fillDate(page, "Check-out", checkOut);
+    await page.getByRole("button", { name: "Decrease Adults" }).click();
+    await page.getByRole("button", { name: "Walk-in" }).click();
+    await page.getByRole("button", { name: "Check availability" }).click();
+    await expect(page.getByRole("heading", { name: "Arrangement" })).toBeVisible();
+    await page.locator("section").filter({ hasText: "Arrangement" }).getByRole("button").first().click();
+    await page.getByLabel("Name").fill("Cancel Dismiss Guest");
+    await page.getByLabel("Phone").fill(test.info().project.name === "mobile" ? "9876500555" : "9876500554");
+    await page.getByLabel("Email").fill(
+      test.info().project.name === "mobile" ? "cancel.dismiss.mobile@honeydew.example" : "cancel.dismiss.e2e@honeydew.example",
+    );
+    await page.getByRole("button", { name: "Confirm booking" }).click();
+    await expect(page.getByRole("heading", { name: "Cancel Dismiss Guest" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel booking" }).click();
+    await expect(page.getByRole("heading", { name: "Cancel this stay?" })).toBeVisible();
+    await page.getByRole("button", { name: "Keep stay" }).click();
+    await expect(page.getByText("Booking cancelled.")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Cancel Dismiss Guest" })).toBeVisible();
+  });
+
+  test("refunds page exposes approve after a cancellation", async ({ page }) => {
+    test.skip(!backendConfigured, "DATABASE_URL is required");
+    await ensureAdmin();
+    await signIn(page);
+    const { checkIn, checkOut } = stay(test.info().project.name === "mobile" ? 160 : 150);
+    await page.goto("/admin/bookings/new");
+    await fillDate(page, "Check-in", checkIn);
+    await fillDate(page, "Check-out", checkOut);
+    await page.getByRole("button", { name: "Decrease Adults" }).click();
+    await page.getByRole("button", { name: "Walk-in" }).click();
+    await page.getByRole("button", { name: "Check availability" }).click();
+    await expect(page.getByRole("heading", { name: "Arrangement" })).toBeVisible();
+    await page.locator("section").filter({ hasText: "Arrangement" }).getByRole("button").first().click();
+    await page.getByLabel("Name").fill("Refund Action Guest");
+    await page.getByLabel("Phone").fill(test.info().project.name === "mobile" ? "9876500666" : "9876500665");
+    await page.getByLabel("Email").fill(
+      test.info().project.name === "mobile" ? "refund.action.mobile@honeydew.example" : "refund.action.e2e@honeydew.example",
+    );
+    await page.getByRole("button", { name: "Confirm booking" }).click();
+    await expect(page.getByRole("heading", { name: "Refund Action Guest" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel booking" }).click();
+    await expect(page.getByRole("heading", { name: "Cancel this stay?" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel stay" }).click();
+    await expect(page.getByText("Booking cancelled.")).toBeVisible();
+    await page.goto("/admin/refunds");
+    await expect(page.getByRole("heading", { name: "Refunds", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reject" }).first()).toBeVisible();
   });
 });

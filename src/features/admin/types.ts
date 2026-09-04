@@ -23,6 +23,7 @@ export interface StaffBookingListItem {
   roomGroups: string[];
   subtotalPaise: number;
   outstandingPaise: number;
+  holdExpiresAt: string | null;
   createdAt: string;
 }
 

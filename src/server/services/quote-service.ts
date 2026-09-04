@@ -8,6 +8,7 @@ import { validateRoomIntent } from "@/domain/booking/validation";
 import { signPayload, verifyPayload } from "@/server/crypto";
 import { getAvailabilityForDates } from "@/server/services/availability-service";
 import { loadCurrentBookingConfig } from "@/server/services/booking-config-service";
+import { devPaymentsEnabled } from "@/server/payments/dev-provider";
 
 const QUOTE_TTL_SECONDS = 10 * 60;
 
@@ -53,6 +54,7 @@ export async function createQuote(input: QuoteRequestInput): Promise<QuoteRespon
     expiresAt: new Date(expiresAt * 1000).toISOString(),
     tariffRevision: config.tariffRevision.revision,
     policyRevision: config.policyRevision.revision,
+    paymentReady: devPaymentsEnabled(),
   };
 }
 

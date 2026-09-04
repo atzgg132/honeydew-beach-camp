@@ -33,7 +33,7 @@ export async function getAdminOverview() {
         orderBy: { contactFullName: "asc" },
       }),
       prisma.booking.findMany({
-        where: { status: "CONFIRMED", checkIn: { lte: todayStart }, checkOut: { gt: todayStart } },
+        where: { status: "CONFIRMED", checkIn: { lt: todayStart }, checkOut: { gt: todayStart } },
         include,
         orderBy: { contactFullName: "asc" },
       }),

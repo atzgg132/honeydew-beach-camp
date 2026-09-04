@@ -74,6 +74,26 @@ export function formatDisplayDate(date: string): string {
   }).format(utc);
 }
 
+export function formatShortDate(date: string): string {
+  const utc = parseDateOnlyUtc(date);
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(utc);
+}
+
+export function formatIstDateTime(iso: string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(iso));
+}
+
 export function formatTimeLabel(timeHHmm: string): string {
   const [h, m] = timeHHmm.split(":").map(Number);
   const suffix = h >= 12 ? "PM" : "AM";

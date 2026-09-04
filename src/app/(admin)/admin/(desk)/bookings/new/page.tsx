@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { NewBookingForm } from "@/features/admin/bookings/NewBookingForm";
 import { addDays, todayIstDate } from "@/lib/dates";
+
+export const metadata: Metadata = { title: "New booking" };
 
 export default function AdminNewBookingPage() {
   const checkIn = todayIstDate();

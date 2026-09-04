@@ -1,7 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { BookingCards } from "@/features/admin/bookings/BookingList";
-import { InviteStaffForm } from "@/features/admin/settings/InviteStaffForm";
 import { getAdminOverview } from "@/server/services/admin-overview";
+import { formatDisplayDate, formatIstDateTime } from "@/lib/dates";
+import { formatInrPaise } from "@/lib/format";
+
+export const metadata: Metadata = { title: "Today" };
 
 function Section({
   title,
@@ -23,68 +27,96 @@ function Section({
   );
 }
 
+function AttentionGroup({
+  title,
+  empty,
+  children,
+  count,
+}: {
+  title: string;
+  empty: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-medium">{title}</h3>
+      {count === 0 ? <p className="mt-2 text-sm text-ink/65">{empty}</p> : <ul className="mt-2 space-y-2 text-sm">{children}</ul>}
+    </div>
+  );
+}
+
 export default async function AdminOverviewPage() {
   const data = await getAdminOverview();
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <p className="text-xs uppercase tracking-[0.14em] text-ink/55">Today · {data.today}</p>
-        <h1 className="mt-1 text-2xl font-medium tracking-tight">Desk</h1>
+        <h1 className="text-2xl font-medium tracking-tight">Today</h1>
+        <p className="mt-1 text-sm text-ink/65">{formatDisplayDate(data.today)}</p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <Section title="Arriving" count={data.arriving.length}>
-          <BookingCards bookings={data.arriving} />
+          <BookingCards bookings={data.arriving} emptyLabel="No arrivals today." />
         </Section>
         <Section title="Leaving" count={data.departing.length}>
-          <BookingCards bookings={data.departing} />
+          <BookingCards bookings={data.departing} emptyLabel="No departures today." />
         </Section>
         <Section title="In house" count={data.inHouse.length}>
-          <BookingCards bookings={data.inHouse} />
+          <BookingCards bookings={data.inHouse} emptyLabel="No one already in house." />
         </Section>
-        <Section title="Upcoming" count={data.upcoming.length}>
-          <BookingCards bookings={data.upcoming} />
+        <Section title="Outstanding balances" count={data.outstandingBalances.length}>
+          <BookingCards bookings={data.outstandingBalances} emptyLabel="No balances due." />
         </Section>
       </div>
-      <Section title="Attention" count={data.pendingRefunds.length + data.paidUnallocated.length + data.blockedToday.length + data.liveHolds.length}>
-        <ul className="space-y-2 text-sm">
-          {data.pendingRefunds.map((row) => (
-            <li key={row.cancellationId}>
-              <Link href={`/admin/bookings/${row.booking.id}`} className="underline-offset-2 hover:underline">
-                Refund queued · {row.booking.reference ?? row.booking.contactName}
-              </Link>
-            </li>
-          ))}
-          {data.paidUnallocated.map((row) => (
-            <li key={row.paymentOrderId}>
-              <Link href={`/admin/bookings/${row.booking.id}`} className="underline-offset-2 hover:underline">
-                Paid, unallocated · {row.booking.contactName}
-              </Link>
-            </li>
-          ))}
-          {data.blockedToday.map((block) => (
-            <li key={block.id}>
-              Room {block.roomNumber} blocked · {block.reason}
-            </li>
-          ))}
-          {data.liveHolds.map((hold) => (
-            <li key={hold.id}>
-              <Link href={`/admin/bookings/${hold.id}`} className="underline-offset-2 hover:underline">
-                Open hold · {hold.contactName}
-              </Link>
-            </li>
-          ))}
-          {data.pendingRefunds.length + data.paidUnallocated.length + data.blockedToday.length + data.liveHolds.length === 0 ? (
-            <li className="text-ink/65">Nothing waiting.</li>
-          ) : null}
-        </ul>
+      <Section
+        title="Attention"
+        count={data.pendingRefunds.length + data.paidUnallocated.length + data.blockedToday.length + data.liveHolds.length}
+      >
+        <div className="grid gap-5">
+          <AttentionGroup title="Refunds to review" empty="No refunds waiting." count={data.pendingRefunds.length}>
+            {data.pendingRefunds.map((row) => (
+              <li key={row.cancellationId}>
+                <Link href={`/admin/bookings/${row.booking.id}`} className="underline-offset-2 hover:underline">
+                  {row.booking.reference ?? row.booking.contactName}
+                </Link>
+                <span className="text-ink/65"> · {formatInrPaise(row.refundablePaise)}</span>
+              </li>
+            ))}
+          </AttentionGroup>
+          <AttentionGroup title="Paid, unallocated" empty="No late payments waiting." count={data.paidUnallocated.length}>
+            {data.paidUnallocated.map((row) => (
+              <li key={row.paymentOrderId}>
+                <Link href={`/admin/bookings/${row.booking.id}`} className="underline-offset-2 hover:underline">
+                  {row.booking.contactName}
+                </Link>
+                <span className="text-ink/65"> · {formatInrPaise(row.amountPaise)}</span>
+              </li>
+            ))}
+          </AttentionGroup>
+          <AttentionGroup title="Open holds" empty="No live holds." count={data.liveHolds.length}>
+            {data.liveHolds.map((hold) => (
+              <li key={hold.id}>
+                <Link href={`/admin/bookings/${hold.id}`} className="underline-offset-2 hover:underline">
+                  {hold.contactName}
+                </Link>
+                {hold.holdExpiresAt ? (
+                  <span className="text-ink/65"> · expires {formatIstDateTime(hold.holdExpiresAt)}</span>
+                ) : null}
+              </li>
+            ))}
+          </AttentionGroup>
+          <AttentionGroup title="Rooms blocked today" empty="No blocks covering today." count={data.blockedToday.length}>
+            {data.blockedToday.map((block) => (
+              <li key={block.id}>
+                <Link href="/admin/rooms" className="underline-offset-2 hover:underline">
+                  Room {block.roomNumber}
+                </Link>
+                <span className="text-ink/65"> · {block.reason}</span>
+              </li>
+            ))}
+          </AttentionGroup>
+        </div>
       </Section>
-      <Section title="Outstanding balances" count={data.outstandingBalances.length}>
-        <BookingCards bookings={data.outstandingBalances} />
-      </Section>
-      <Section title="Recent bookings" count={data.recent.length}>
-        <BookingCards bookings={data.recent} />
-      </Section>
-      <InviteStaffForm />
     </div>
   );
 }

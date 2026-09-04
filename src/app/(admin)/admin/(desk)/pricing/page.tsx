@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
+import { InviteStaffForm } from "@/features/admin/settings/InviteStaffForm";
 import { PricingForm } from "@/features/admin/settings/PricingForm";
 import { getAdminPricing } from "@/server/services/admin-config";
+
+export const metadata: Metadata = { title: "Pricing" };
 
 export default async function AdminPricingPage() {
   const pricing = await getAdminPricing();
@@ -13,6 +17,7 @@ export default async function AdminPricingPage() {
           rates: pricing.rates,
         }}
       />
+      <InviteStaffForm />
     </div>
   );
 }

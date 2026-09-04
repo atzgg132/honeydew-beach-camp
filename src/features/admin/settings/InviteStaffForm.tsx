@@ -11,12 +11,14 @@ export function InviteStaffForm() {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setPending(true);
     setError(null);
     setUrl(null);
+    setCopied(false);
     try {
       const result = await adminInvite(email);
       setUrl(result.acceptUrl);
@@ -40,10 +42,23 @@ export function InviteStaffForm() {
           {pending ? "Creating…" : "Create invite"}
         </Button>
       </form>
-      {error ? <div className="mt-3"><Notice tone="error">{error}</Notice></div> : null}
-      {url ? (
+      {error ? (
         <div className="mt-3">
+          <Notice tone="error">{error}</Notice>
+        </div>
+      ) : null}
+      {url ? (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
           <Notice tone="success">{url}</Notice>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              void navigator.clipboard.writeText(url).then(() => setCopied(true));
+            }}
+          >
+            {copied ? "Copied" : "Copy link"}
+          </Button>
         </div>
       ) : null}
     </section>

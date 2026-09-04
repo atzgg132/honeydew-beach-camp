@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { LoginForm } from "@/features/admin/auth/LoginForm";
+
+export const metadata: Metadata = { title: "Sign in" };
 
 export default function AdminLoginPage() {
   return (

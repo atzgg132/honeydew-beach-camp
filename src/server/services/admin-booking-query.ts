@@ -99,17 +99,25 @@ function buildWhere(query: AdminBookingListQuery): Prisma.BookingWhereInput {
     clauses.push({ contactEmail: { contains: query.email.trim().toLowerCase(), mode: "insensitive" } });
   }
   const digits = query.phone ? last10Digits(query.phone) : "";
-  if (digits.length === 10) {
-    clauses.push({ contactPhoneLookupHash: phoneLookupHash(`+91${digits}`) });
+  if (query.phone) {
+    if (digits.length === 10) {
+      clauses.push({ contactPhoneLookupHash: phoneLookupHash(`+91${digits}`) });
+    } else {
+      clauses.push({ reference: "__no_match__" });
+    }
   }
-  if (query.from && query.to) {
-    clauses.push({
-      checkIn: { lt: dateOnlyToUtc(query.to) },
-      checkOut: { gt: dateOnlyToUtc(query.from) },
-    });
+  if (query.from || query.to) {
+    if (query.from && query.to) {
+      clauses.push({
+        checkIn: { lt: dateOnlyToUtc(query.to) },
+        checkOut: { gt: dateOnlyToUtc(query.from) },
+      });
+    } else {
+      clauses.push({ reference: "__no_match__" });
+    }
   }
   if (query.status === "COMPLETED") {
-    clauses.push({ status: "CONFIRMED", checkOut: { lte: dateOnlyToUtc(todayIstDate()) } });
+    clauses.push({ status: "CONFIRMED", checkOut: { lt: dateOnlyToUtc(todayIstDate()) } });
   } else if (query.status) {
     clauses.push({ status: query.status });
   }

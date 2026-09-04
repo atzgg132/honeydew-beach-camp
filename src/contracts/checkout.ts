@@ -52,4 +52,5 @@ export interface QuoteResponseDto {
   expiresAt: string;
   tariffRevision: number;
   policyRevision: number;
+  paymentReady: boolean;
 }

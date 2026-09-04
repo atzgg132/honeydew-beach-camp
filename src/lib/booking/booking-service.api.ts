@@ -131,7 +131,7 @@ export async function quoteBooking(input: {
   composition: GuestComposition;
   rooms: RoomAllocation[];
 }) {
-  return api<{ price: BookingPriceDto; quoteToken: string; expiresAt: string }>("/api/quotes", {
+  return api<{ price: BookingPriceDto; quoteToken: string; expiresAt: string; paymentReady: boolean }>("/api/quotes", {
     method: "POST",
     body: JSON.stringify(quoteInput(input.checkIn, input.checkOut, input.composition, input.rooms)),
   });

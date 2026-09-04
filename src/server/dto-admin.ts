@@ -36,7 +36,7 @@ export function staffStatus(record: { status: BookingStatus; checkOut: Date }): 
   if (record.status === "CANCELLED") return "cancelled";
   if (record.status === "PENDING_PAYMENT") return "pending_payment";
   if (record.status === "EXPIRED") return "expired";
-  if (dateOnly(record.checkOut) <= todayIstDate()) return "completed";
+  if (dateOnly(record.checkOut) < todayIstDate()) return "completed";
   return "confirmed";
 }
 
@@ -78,6 +78,7 @@ export function toStaffBookingListItem(record: StaffBookingRecord) {
     roomGroups: record.rooms.map((room) => room.roomGroupNameSnapshot),
     subtotalPaise: record.subtotalPaise,
     outstandingPaise: record.outstandingPaise,
+    holdExpiresAt: record.holdExpiresAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
   };
 }

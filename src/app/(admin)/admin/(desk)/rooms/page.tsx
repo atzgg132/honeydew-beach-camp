@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { RoomsBoard } from "@/features/admin/rooms/RoomsBoard";
-import { addDays, todayIstDate } from "@/lib/dates";
+import { addDays, formatDisplayDate, todayIstDate } from "@/lib/dates";
 import { getRoomGrid } from "@/server/services/admin-inventory";
+
+export const metadata: Metadata = { title: "Rooms" };
 
 export default async function AdminRoomsPage({
   searchParams,
@@ -17,7 +20,7 @@ export default async function AdminRoomsPage({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-medium tracking-tight">Rooms</h1>
-          <p className="text-sm text-ink/65">Fourteen days from {from}. Tap a block to release it.</p>
+          <p className="text-sm text-ink/65">Fourteen days from {formatDisplayDate(from)}. Confirm before releasing a block.</p>
         </div>
         <div className="flex gap-3 text-sm">
           <Link href={`/admin/rooms?from=${prev}`} className="underline-offset-2 hover:underline">

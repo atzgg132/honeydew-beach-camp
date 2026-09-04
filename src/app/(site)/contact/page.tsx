@@ -47,7 +47,7 @@ export default function ContactPage() {
         <div>
           <h2 className="font-serif text-2xl tracking-tight">Write to the camp</h2>
           <p className="mt-2 mb-6 text-sm text-ink/70">
-            For this demonstration, the form does not send mail.
+            Mail is not wired yet. Use the phones or email on the left.
           </p>
           <ContactForm />
         </div>

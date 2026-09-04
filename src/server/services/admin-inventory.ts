@@ -29,7 +29,13 @@ export async function getRoomGrid(from = todayIstDate(), days = 14) {
           checkOut: { gt: start },
         },
         include: {
-          bookingRoom: { select: { bookingId: true, acMode: true, booking: { select: { reference: true, status: true } } } },
+          bookingRoom: {
+            select: {
+              bookingId: true,
+              acMode: true,
+              booking: { select: { reference: true, status: true, contactFullName: true } },
+            },
+          },
           roomBlock: { select: { id: true, reason: true, active: true } },
         },
       },
@@ -64,6 +70,7 @@ export async function getRoomGrid(from = todayIstDate(), days = 14) {
           state: hit.state === "HELD" ? ("held" as const) : ("booked" as const),
           bookingId: hit.bookingRoom?.bookingId ?? null,
           reference: hit.bookingRoom?.booking.reference ?? null,
+          guestName: hit.bookingRoom?.booking.contactFullName ?? null,
           acMode: hit.bookingRoom?.acMode === "AC" ? "ac" : "non-ac",
         };
       }),

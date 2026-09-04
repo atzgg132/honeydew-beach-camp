@@ -4,9 +4,15 @@ import { formatInrPaise } from "@/lib/format";
 import type { StaffBookingListItem } from "@/features/admin/types";
 import { BookingStatusBadge, PaymentStatusBadge, SourceBadge } from "@/features/admin/ui/AdminStatusBadge";
 
-export function BookingCards({ bookings }: { bookings: StaffBookingListItem[] }) {
+export function BookingCards({
+  bookings,
+  emptyLabel = "Nothing here.",
+}: {
+  bookings: StaffBookingListItem[];
+  emptyLabel?: string;
+}) {
   if (bookings.length === 0) {
-    return <p className="text-sm text-ink/65">Nothing here.</p>;
+    return <p className="text-sm text-ink/65">{emptyLabel}</p>;
   }
   return (
     <>
@@ -21,7 +27,7 @@ export function BookingCards({ bookings }: { bookings: StaffBookingListItem[] })
               </div>
               <p className="mt-2 text-sm">{booking.contactName}</p>
               <p className="text-sm text-ink/65">
-                {formatDisplayDate(booking.checkIn)} – {formatDisplayDate(booking.checkOut)}
+                {formatDisplayDate(booking.checkIn)} to {formatDisplayDate(booking.checkOut)}
               </p>
               <p className="mt-1 text-sm text-ink/65">
                 {booking.assignedRooms.length > 0 ? booking.assignedRooms.join(", ") : "Unassigned"} · {formatInrPaise(booking.outstandingPaise)} due
@@ -44,7 +50,7 @@ export function BookingCards({ bookings }: { bookings: StaffBookingListItem[] })
           </thead>
           <tbody>
             {bookings.map((booking) => (
-              <tr key={booking.id} className="border-b border-line/70">
+              <tr key={booking.id} className="border-b border-line/70 hover:bg-sand/30">
                 <td className="py-3 pr-3">
                   <Link href={`/admin/bookings/${booking.id}`} className="font-medium underline-offset-2 hover:underline">
                     {booking.reference ?? "No reference"}

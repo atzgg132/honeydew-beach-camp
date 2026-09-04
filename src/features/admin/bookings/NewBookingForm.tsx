@@ -30,16 +30,19 @@ export function NewBookingForm({ checkIn: initialCheckIn, checkOut: initialCheck
   const [acModes, setAcModes] = useState<Array<"ac" | "non-ac">>([]);
   const [quoteToken, setQuoteToken] = useState<string | null>(null);
   const [subtotalPaise, setSubtotalPaise] = useState(0);
+  const [advancePaise, setAdvancePaise] = useState(0);
   const [collectedRupees, setCollectedRupees] = useState("0");
   const [contact, setContact] = useState({ fullName: "", phone: "", email: "" });
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [searched, setSearched] = useState(false);
 
   async function search() {
     setError(null);
     setPending(true);
     try {
       const result = await adminSearchAvailability({ checkIn, checkOut, composition });
+      setSearched(true);
       setArrangements(result.arrangements);
       setSelected(null);
       setQuoteToken(null);
@@ -63,6 +66,7 @@ export function NewBookingForm({ checkIn: initialCheckIn, checkOut: initialCheck
       const result = await adminQuote({ checkIn, checkOut, composition, rooms });
       setQuoteToken(result.quoteToken);
       setSubtotalPaise(result.price.subtotalPaise);
+      setAdvancePaise(result.price.advancePaise);
     } catch (caught) {
       setError(caught instanceof AdminApiError ? caught.message : "Quote failed.");
     } finally {
@@ -117,6 +121,9 @@ export function NewBookingForm({ checkIn: initialCheckIn, checkOut: initialCheck
           Check availability
         </Button>
       </section>
+      {searched && arrangements.length === 0 ? (
+        <Notice>No rooms free for those dates.</Notice>
+      ) : null}
       {arrangements.length > 0 ? (
         <section className="rounded-[6px] border border-line bg-cream-raised p-4">
           <h2 className="text-sm font-medium">Arrangement</h2>
@@ -164,7 +171,11 @@ export function NewBookingForm({ checkIn: initialCheckIn, checkOut: initialCheck
               </li>
             ))}
           </ul>
-          {quoteToken ? <p className="mt-3 text-sm">Stay total {formatInrPaise(subtotalPaise)}</p> : null}
+          {quoteToken ? (
+            <p className="mt-3 text-sm">
+              Stay total {formatInrPaise(subtotalPaise)}. Advance {formatInrPaise(advancePaise)}.
+            </p>
+          ) : null}
         </section>
       ) : null}
       <section className="grid gap-3 rounded-[6px] border border-line bg-cream-raised p-4">
@@ -184,6 +195,9 @@ export function NewBookingForm({ checkIn: initialCheckIn, checkOut: initialCheck
         <Button type="button" onClick={() => void create()} disabled={!quoteToken || pending}>
           Confirm booking
         </Button>
+        {!quoteToken ? (
+          <p className="text-sm text-ink/65">Check availability and pick an arrangement first.</p>
+        ) : null}
       </section>
     </div>
   );

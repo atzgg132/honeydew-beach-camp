@@ -683,13 +683,13 @@ function PayStep({
   }, [adults, checkIn, checkOut, children5to10, childrenUnder5, rooms]);
 
   async function pay() {
-    if (!authoritative) return;
+    if (!authoritative || !authoritative.paymentReady) return;
     setBusy(true);
     setError(null);
     try {
       const hold = checkoutHold ?? await createCheckoutHold(authoritative.quoteToken, contact);
       if (!checkoutHold) setCheckoutHold(hold);
-      if (!hold.paymentReady) throw new Error("Online payment is not configured yet. Your room hold will expire automatically.");
+      if (!hold.paymentReady) throw new Error("Online payment is not available. Call the camp to book.");
       const order = await createPaymentOrder(hold.holdId);
       await succeedDevelopmentPayment(order.orderId);
       clearDraft();
@@ -719,13 +719,29 @@ function PayStep({
       <div className="mt-6 space-y-3">
         {error ? <Notice tone="error">{error}</Notice> : null}
       </div>
-      <div className="mt-8 flex gap-3">
-        <Button type="button" variant="secondary" onClick={onBack} disabled={busy}>
-          Back
-        </Button>
-        <Button type="button" onClick={pay} disabled={busy || !authoritative}>
-          {busy ? "Processing" : authoritative ? "Pay advance" : "Preparing quote"}
-        </Button>
+      <div className="mt-8 flex flex-col gap-3">
+        <div className="flex gap-3">
+          <Button type="button" variant="secondary" onClick={onBack} disabled={busy}>
+            Back
+          </Button>
+          {authoritative?.paymentReady ? (
+            <Button type="button" onClick={pay} disabled={busy}>
+              {busy ? "Processing" : "Pay advance"}
+            </Button>
+          ) : !authoritative ? (
+            <Button type="button" disabled>
+              Preparing quote
+            </Button>
+          ) : null}
+        </div>
+        {authoritative && !authoritative.paymentReady ? (
+          <div className="space-y-3">
+            <Notice>
+              Online payment is not live yet. Call the camp to book these rooms. This page will not take a card or lock a hold.
+            </Notice>
+            <CallProperty />
+          </div>
+        ) : null}
       </div>
     </div>
   );

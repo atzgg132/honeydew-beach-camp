@@ -174,6 +174,7 @@ function ChangeGuests({ booking, onChange }: { booking: Booking; onChange: (book
   const [composition, setComposition] = useState<GuestComposition>(booking.composition);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [quote, setQuote] = useState<Awaited<ReturnType<typeof quoteManagedGuestChange>> | null>(null);
   const rebalanced = rebalanceExistingRooms(booking.rooms, composition);
   const preview = rebalanced ? priceBooking({ checkIn: booking.checkIn, checkOut: booking.checkOut, rooms: rebalanced }) : null;
   return (
@@ -184,13 +185,20 @@ function ChangeGuests({ booking, onChange }: { booking: Booking; onChange: (book
       {message ? <Notice>{message}</Notice> : null}
       <Button type="button" variant="secondary" className="mt-3" disabled={busy || !rebalanced} onClick={async () => {
         setBusy(true); setMessage(null);
+        try { setQuote(await quoteManagedGuestChange(composition)); }
+        catch (caught) { setMessage(caught instanceof Error ? caught.message : "Could not price the guest change."); }
+        finally { setBusy(false); }
+      }}>{busy ? "Pricing" : "Price guest change"}</Button>
+      {quote ? <ConfirmDialog title="Change guests" confirmLabel="Apply guest change" cancelLabel="Keep current mix" onClose={() => setQuote(null)} onConfirm={async () => {
         try {
-          const quote = await quoteManagedGuestChange(composition);
           onChange(await applyManagedGuestChange(quote.quoteToken));
+          setQuote(null);
           setMessage("Guest composition updated. Any paid excess is reviewed by the hotel.");
         } catch (caught) { setMessage(caught instanceof Error ? caught.message : "Could not update the guests."); }
-        finally { setBusy(false); }
-      }}>{busy ? "Confirming" : "Confirm guest change"}</Button>
+      }}>
+        <p>New stay total {formatInr(quote.price.subtotalPaise / 100)}.</p>
+        <p className="mt-2">Difference {formatInr(quote.deltaPaise / 100)}.</p>
+      </ConfirmDialog> : null}
     </div>
   );
 }
