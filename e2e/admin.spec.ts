@@ -201,6 +201,11 @@ test.describe("admin desk", () => {
     await page.getByRole("button", { name: "Check availability" }).click();
     await expect(page.getByRole("heading", { name: "Arrangement" })).toBeVisible();
     await page.locator("section").filter({ hasText: "Arrangement" }).getByRole("button").first().click();
+    const quoteLine = page.getByText(/Stay total/);
+    await expect(quoteLine).toBeVisible();
+    const advanceRupees = (await quoteLine.innerText()).split("Advance")[1]?.replace(/\D/g, "") ?? "";
+    expect(Number(advanceRupees)).toBeGreaterThan(0);
+    await page.getByLabel("Collected now (₹)").fill(advanceRupees);
     await page.getByLabel("Name").fill("Refund Action Guest");
     await page.getByLabel("Phone").fill(test.info().project.name === "mobile" ? "9876500666" : "9876500665");
     await page.getByLabel("Email").fill(
