@@ -20,7 +20,7 @@ export const copy = {
   occupancyAdultsHint: "Count guests older than 10 with adults.",
   specialRequest:
     "Have a special request? Please call Honey Dew Beach Camp and the team will assist where possible.",
-  oneGuestNote: "One guest in a Single-Bed Room is charged at the two-person tariff rate, for one person.",
+  oneGuestNote: "A single guest in a Single-Bed Room is charged the one-guest tariff, with or without air-conditioning.",
   advanceNote: "An advance is payable now. The current percentage is shown in the booking quote.",
   rateQualifier: "per person, per night",
 };

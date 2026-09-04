@@ -28,14 +28,14 @@ function room(
 }
 
 describe("single-bed per-person tariffs", () => {
-  it("charges 1 guest at the 2-head rate for one person", () => {
+  it("charges 1 guest AC on the one-guest tariff", () => {
     const priced = priceRoom({
       roomGroupId: "single-bed",
       acMode: "ac",
       composition: adults(1),
       nights: 1,
     });
-    expect(priced.tariffOccupancy).toBe(2);
+    expect(priced.tariffOccupancy).toBe(1);
     expect(priced.tariffPerPerson).toBe(1499);
     expect(priced.billableUnits).toBe(1);
     expect(priced.nightlyTotal).toBe(1499);

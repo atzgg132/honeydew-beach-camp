@@ -21,7 +21,7 @@ export const roomGroups: RoomGroup[] = [
     mediaIds: ["one-bed-01", "one-bed-02", "one-bed-03", "one-bed-04", "bathroom", "cottages"],
     shortDifference: "One bed. For one to three guests in each room.",
     description:
-      "A Single-Bed Room at Honey Dew Beach Camp. Each room suits one, two, or three guests. One guest is charged at the two-person tariff rate for one person. Meals are included in the tariff. Air-conditioning can be included or left out. The rooms themselves are the same either way. Larger parties can reserve more than one room.",
+      "A Single-Bed Room at Honey Dew Beach Camp. Each room suits one, two, or three guests. One guest has its own Non-AC and AC tariff. Meals are included in the tariff. Air-conditioning can be included or left out. The rooms themselves are the same either way. Larger parties can reserve more than one room.",
   },
   {
     id: "double-bed",

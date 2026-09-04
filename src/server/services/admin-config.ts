@@ -1,21 +1,15 @@
 import "server-only";
 import { ApiError } from "@/contracts/errors";
+import { tariffTable } from "@/data/tariff-table";
 import type { AdminActor } from "@/server/auth/admin-session";
 import { db } from "@/server/db/client";
 import { loadCurrentBookingConfig } from "@/server/services/booking-config-service";
 
-const REQUIRED_RATES = [
-  { roomGroupId: "single-bed", tariffOccupancy: 2, acMode: "ac" },
-  { roomGroupId: "single-bed", tariffOccupancy: 2, acMode: "non-ac" },
-  { roomGroupId: "single-bed", tariffOccupancy: 3, acMode: "ac" },
-  { roomGroupId: "single-bed", tariffOccupancy: 3, acMode: "non-ac" },
-  { roomGroupId: "double-bed", tariffOccupancy: 4, acMode: "ac" },
-  { roomGroupId: "double-bed", tariffOccupancy: 4, acMode: "non-ac" },
-  { roomGroupId: "double-bed", tariffOccupancy: 5, acMode: "ac" },
-  { roomGroupId: "double-bed", tariffOccupancy: 5, acMode: "non-ac" },
-  { roomGroupId: "double-bed", tariffOccupancy: 6, acMode: "ac" },
-  { roomGroupId: "double-bed", tariffOccupancy: 6, acMode: "non-ac" },
-] as const;
+const REQUIRED_RATES = tariffTable.map(({ roomGroupId, tariffOccupancy, acMode }) => ({
+  roomGroupId,
+  tariffOccupancy,
+  acMode,
+}));
 
 export async function getAdminPricing() {
   const config = await loadCurrentBookingConfig();

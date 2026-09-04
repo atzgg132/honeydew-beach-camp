@@ -38,7 +38,7 @@ function everyLegalRoom(): RoomCase[] {
   const rooms: RoomCase[] = [];
   const modes: AcMode[] = ["ac", "non-ac"];
   for (const acMode of modes) {
-    // Single-bed holds 1 to 3; a lone guest is billed on the two-person tier.
+    // Single-bed holds 1 to 3, each with its own AC and Non-AC tariff.
     for (let guests = 1; guests <= 3; guests += 1) {
       for (let children = 0; children <= guests - 1; children += 1) {
         rooms.push({

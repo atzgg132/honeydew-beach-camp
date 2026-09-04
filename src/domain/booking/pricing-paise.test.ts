@@ -3,12 +3,13 @@ import { priceBookingPaise, roundBasisPoints } from "@/domain/booking/pricing";
 import { quoteCancellationPaise } from "@/domain/booking/cancellation";
 
 const rates = [
+  { roomGroupId: "single-bed", tariffOccupancy: 1, acMode: "ac" as const, ratePerPersonPaise: 149_900 },
   { roomGroupId: "single-bed", tariffOccupancy: 2, acMode: "ac" as const, ratePerPersonPaise: 149_900 },
   { roomGroupId: "single-bed", tariffOccupancy: 3, acMode: "ac" as const, ratePerPersonPaise: 139_900 },
 ];
 
 describe("server-authoritative paise pricing", () => {
-  it("uses the two-person tier for one guest but charges one guest", () => {
+  it("uses the one-guest tier for one guest", () => {
     const priced = priceBookingPaise(
       {
         checkIn: "2026-12-10",

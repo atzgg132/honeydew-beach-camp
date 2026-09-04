@@ -1,4 +1,5 @@
 import { tariffTable } from "@/data/tariff-table";
+import { tariffOccupancy } from "@/domain/booking/pricing";
 import type { AcMode, RoomGroupId, TariffSlab } from "@/types";
 
 export const rateQualifier = "per person, per night";
@@ -14,14 +15,7 @@ export const tariffSlabs: TariffSlab[] = tariffTable.map((entry) => ({
 }));
 
 export function tariffOccupancyFor(roomGroupId: RoomGroupId, physicalOccupancy: number): number {
-  if (roomGroupId === "single-bed") {
-    if (physicalOccupancy === 1 || physicalOccupancy === 2) return 2;
-    if (physicalOccupancy === 3) return 3;
-  }
-  if (roomGroupId === "double-bed") {
-    if (physicalOccupancy >= 4 && physicalOccupancy <= 6) return physicalOccupancy;
-  }
-  throw new Error(`No tariff occupancy for ${roomGroupId} with ${physicalOccupancy} guests.`);
+  return tariffOccupancy(roomGroupId, physicalOccupancy);
 }
 
 export function findSlab(

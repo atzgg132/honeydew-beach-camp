@@ -97,8 +97,8 @@ describe.skipIf(!testDatabaseUrl)("public API routes", () => {
 
       const body = await readJson(response);
       const data = body.data as { quoteToken: string; price: { subtotalPaise: number; advancePaise: number } };
-      // A lone guest in a single-bed room is billed at the two-person tier rate for one
-      // person: 119900 paise a night, over two nights.
+      // A lone guest in a single-bed room is billed on the one-guest Non-AC tariff:
+      // 119900 paise a night, over two nights.
       expect(data.price.subtotalPaise).toBe(239_800);
       // Thirty percent advance, half-up rounding, in paise.
       expect(data.price.advancePaise).toBe(71_940);

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { bookingContactContract, compositionContract, dateOnlySchema, roomIntentContract } from "@/contracts/booking";
+import { tariffTable } from "@/data/tariff-table";
 
 export const adminLoginContract = z.object({
   email: z.string().trim().email().max(254),
@@ -77,7 +78,7 @@ export const adminTariffRevisionContract = z.object({
         ratePerPersonPaise: z.number().int().positive(),
       }),
     )
-    .length(10),
+    .length(tariffTable.length),
 });
 
 export const adminPolicyRevisionContract = z.object({

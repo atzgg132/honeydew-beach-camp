@@ -17,13 +17,15 @@ import type { AcMode, RoomGroupId } from "@/types";
  */
 export interface TariffTableEntry {
   roomGroupId: RoomGroupId;
-  /** The occupancy tier the rate is filed under, not necessarily the guest count. */
+  /** Guest count this rate applies to. Single-bed: 1, 2, or 3. Double-bed: 4, 5, or 6. */
   tariffOccupancy: number;
   acMode: AcMode;
   ratePerPersonPaise: number;
 }
 
 export const tariffTable: readonly TariffTableEntry[] = [
+  { roomGroupId: "single-bed", tariffOccupancy: 1, acMode: "ac", ratePerPersonPaise: 149_900 },
+  { roomGroupId: "single-bed", tariffOccupancy: 1, acMode: "non-ac", ratePerPersonPaise: 119_900 },
   { roomGroupId: "single-bed", tariffOccupancy: 2, acMode: "ac", ratePerPersonPaise: 149_900 },
   { roomGroupId: "single-bed", tariffOccupancy: 2, acMode: "non-ac", ratePerPersonPaise: 119_900 },
   { roomGroupId: "single-bed", tariffOccupancy: 3, acMode: "ac", ratePerPersonPaise: 139_900 },

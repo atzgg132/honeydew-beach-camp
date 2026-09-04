@@ -17,8 +17,7 @@ export function billingHalfUnits(composition: QuoteRequestInput["composition"]):
 }
 
 export function tariffOccupancy(roomGroupId: string, occupancy: number): number {
-  if (roomGroupId === "single-bed" && occupancy >= 1 && occupancy <= 2) return 2;
-  if (roomGroupId === "single-bed" && occupancy === 3) return 3;
+  if (roomGroupId === "single-bed" && occupancy >= 1 && occupancy <= 3) return occupancy;
   if (roomGroupId === "double-bed" && occupancy >= 4 && occupancy <= 6) return occupancy;
   throw new Error("INVALID_ROOM_OCCUPANCY");
 }

@@ -91,12 +91,17 @@ test.describe("booking", () => {
     await expect(page.getByText("Meals at the camp are included in the stay charges.").first()).toBeVisible();
   });
 
-  test("single guest uses 2-head rate for one person", async ({ page }) => {
+  test("single guest can choose AC or Non-AC on the one-guest tariff", async ({ page }) => {
     await page.goto(
       `/book?checkIn=${futureDate(20)}&checkOut=${futureDate(21)}&adults=1&childrenUnder5=0&children5to10=0&step=arrangement`,
     );
     await page.getByRole("button", { name: /Single-Bed Room · 1 guest/ }).click();
+    await expect(page.getByRole("heading", { name: "Air-conditioning" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Non-AC" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "AC included" })).toBeVisible();
+    await expect(page.getByText("₹1,199 a night")).toBeVisible();
     await page.getByRole("button", { name: "AC included" }).click();
+    await expect(page.getByText("₹1,499 a night")).toBeVisible();
     await page.getByRole("button", { name: "Continue" }).click();
     await fillContact(page);
     await expect(page.getByText("₹1,499 a night")).toBeVisible();
