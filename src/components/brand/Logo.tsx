@@ -32,17 +32,21 @@ export function Logo({
   className,
   priority = false,
   wordmark = false,
+  compact = false,
 }: {
   variant?: Variant;
   href?: string | null;
   className?: string;
   priority?: boolean;
   wordmark?: boolean;
+  compact?: boolean;
 }) {
   const asset = assets[variant];
   const frame =
     variant === "mark"
-      ? "relative h-12 w-12 md:h-14 md:w-14"
+      ? compact
+        ? "relative h-10 w-10"
+        : "relative h-12 w-12 md:h-14 md:w-14"
       : variant === "lockup"
         ? "relative h-20 w-20 md:h-32 md:w-32"
         : "relative aspect-square w-full max-w-md";
@@ -63,12 +67,29 @@ export function Logo({
         />
       </span>
       {wordmark ? (
-        <span className="flex min-w-0 flex-col leading-[1.1] tracking-tight sm:flex-row sm:flex-nowrap sm:items-baseline sm:gap-x-1.5">
-          <span className="whitespace-nowrap text-[0.92rem] font-medium sm:text-[1.05rem]">
+        <span
+          className={cn(
+            "flex min-w-0 flex-col leading-[1.15] tracking-tight",
+            compact ? "gap-0.5" : "sm:flex-row sm:flex-nowrap sm:items-baseline sm:gap-x-1.5",
+          )}
+        >
+          <span
+            className={cn(
+              "font-medium",
+              compact ? "text-[0.8125rem]" : "whitespace-nowrap text-[0.92rem] sm:text-[1.05rem]",
+            )}
+          >
             {hotel.shortName}
           </span>
           {restOfName ? (
-            <span className="whitespace-nowrap text-[0.78rem] font-medium text-current/80 sm:text-[1.05rem] sm:text-current">
+            <span
+              className={cn(
+                "font-medium",
+                compact
+                  ? "text-[0.8125rem] text-current/80"
+                  : "whitespace-nowrap text-[0.78rem] text-current/80 sm:text-[1.05rem] sm:text-current",
+              )}
+            >
               {restOfName}
             </span>
           ) : null}

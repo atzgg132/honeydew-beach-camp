@@ -70,9 +70,9 @@ export function AdminShell({ email, children }: { email: string; children: React
       </header>
       <div className="lg:flex">
         <aside className="hidden w-56 shrink-0 border-r border-line bg-cream-raised lg:flex lg:min-h-dvh lg:flex-col">
-          <div className="border-b border-line px-4 py-4">
-            <Logo href="/admin" variant="mark" wordmark className="text-ink" />
-            <p className="mt-3 text-xs text-ink/60">{email}</p>
+          <div className="min-w-0 border-b border-line px-4 py-4">
+            <Logo href="/admin" variant="mark" wordmark compact className="text-ink" />
+            <p className="mt-3 truncate text-xs text-ink/60">{email}</p>
           </div>
           <nav aria-label="Desk" className="flex flex-1 flex-col gap-1 p-3">
             {desktopLinks.map((link) => {
