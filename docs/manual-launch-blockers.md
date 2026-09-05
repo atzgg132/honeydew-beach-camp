@@ -105,10 +105,10 @@ Status legend: `OPEN` · `PARTIAL` (code ready, credential outstanding) · `RESO
 
 ---
 
-## B6 — Custom production domain
+## B6 — Custom production domain (`honeydewbeachcamp.com`)
 
 - **Status:** OPEN
-- **Priority:** 5 — `honeydew-iota.vercel.app` remains the working fallback
+- **Priority:** 5 — `honeydew-iota.vercel.app` remains the working fallback until cutover
 - **Why:** Canonical URLs, sitemap, robots, cookie domain, allowed request origins and the payment webhook
   URL all derive from the site URL.
 - **Who:** Repository owner — domain purchase, registrar access, and explicit authorisation to cut over.
@@ -116,7 +116,7 @@ Status legend: `OPEN` · `PARTIAL` (code ready, credential outstanding) · `RESO
 - **DNS action:** Vercel project → Settings → Domains → add the domain, then create the `A` / `CNAME`
   records Vercel displays, at the registrar.
 - **Testable beforehand:** everything, by setting `NEXT_PUBLIC_SITE_URL` locally.
-- **Afterwards:** update `NEXT_PUBLIC_SITE_URL` in Vercel, redeploy, re-register the Cashfree webhook URL
+- **Afterwards:** set `NEXT_PUBLIC_SITE_URL` to `https://honeydewbeachcamp.com` in Vercel, redeploy, re-register the Cashfree webhook URL
   (B2), and re-run the production smoke tests. Keep the `.vercel.app` host resolving until the custom
   domain has been validated.
 

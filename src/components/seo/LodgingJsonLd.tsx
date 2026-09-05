@@ -1,11 +1,14 @@
 import { hotel } from "@/data/hotel";
+import { siteUrl } from "@/lib/site";
 
 export function LodgingJsonLd() {
   const data = {
     "@context": "https://schema.org",
     "@type": "LodgingBusiness",
     name: hotel.name,
+    url: siteUrl,
     email: hotel.email,
+    priceRange: "₹999 - ₹1,499 per person per night",
     telephone: hotel.phones.map((phone) => `+91${phone.number}`),
     address: {
       "@type": "PostalAddress",

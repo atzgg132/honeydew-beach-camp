@@ -13,6 +13,9 @@ const routes = [
   "/about",
   "/contact",
   "/policies",
+  "/terms",
+  "/refunds",
+  "/privacy",
 ];
 
 const viewports = [

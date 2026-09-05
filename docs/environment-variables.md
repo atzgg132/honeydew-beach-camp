@@ -43,7 +43,7 @@ that recomputes those hashes.
 
 | Name | Required | Purpose |
 |---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | runtime | Canonical origin. Drives metadata, Open Graph, `sitemap.xml`, `robots.txt` and the payment webhook URL. This is the single variable that changes when the custom domain goes live (blocker B6). Falls back to a placeholder, so an unset value silently produces wrong canonical URLs — always set it in a deployed environment. |
+| `NEXT_PUBLIC_SITE_URL` | runtime | Canonical origin. Drives metadata, Open Graph, `sitemap.xml`, `robots.txt` and the payment webhook URL. Set to `https://honeydewbeachcamp.com` in production (blocker B6); the code falls back to that origin when unset, so local and preview builds must set their own value to avoid leaking production canonical URLs. |
 
 ## Scheduled jobs
 

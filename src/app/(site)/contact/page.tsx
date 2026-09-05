@@ -13,10 +13,14 @@ export default function ContactPage() {
       <Container className="grid gap-12 py-16 md:grid-cols-2 md:py-24">
         <div>
           <h1 className="font-serif text-4xl tracking-tight md:text-5xl">Contact</h1>
-          <div className="mt-8 space-y-1 text-base leading-7">
+          <p className="mt-4 text-lg text-ink/75">
+            {hotel.name} · {hotel.localityLabel}
+          </p>
+          <div className="mt-6 space-y-1 text-base leading-7">
             {hotel.addressLines.map((line) => (
               <p key={line}>{line}</p>
             ))}
+            <p>{hotel.district}</p>
           </div>
           <p className="mt-6 flex flex-col">
             {hotel.phones.map((phone) => (
@@ -34,7 +38,10 @@ export default function ContactPage() {
               {hotel.email}
             </a>
           </p>
-          <p className="mt-6 text-sm text-ink/70">
+          <p className="mt-6 text-sm leading-6 text-ink/70">
+            Support hours: {hotel.supportHours}. {hotel.responseNote}
+          </p>
+          <p className="mt-3 text-sm text-ink/70">
             Check-in {formatTimeLabel(hotel.checkInTime)}. Check-out {formatTimeLabel(hotel.checkOutTime)}.
           </p>
           <Button href={hotel.mapsUrl} variant="secondary" className="mt-8">
@@ -47,7 +54,7 @@ export default function ContactPage() {
         <div>
           <h2 className="font-serif text-2xl tracking-tight">Write to the camp</h2>
           <p className="mt-2 mb-6 text-sm text-ink/70">
-            Mail is not wired yet. Use the phones or email on the left.
+            Send dates, group size, and anything the team should know.
           </p>
           <ContactForm />
         </div>

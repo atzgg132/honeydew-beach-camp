@@ -50,6 +50,7 @@ async function createSimpleBooking(page: Page, days: number) {
   await page.getByRole("button", { name: /Single-Bed Room · 1 guest/ }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await fillContact(page);
+  await page.getByLabel(/I agree to the Terms/).check();
   await page.getByRole("button", { name: "Continue to advance" }).click();
   await page.getByRole("button", { name: "Pay advance" }).click();
   await expect(page.getByRole("heading", { name: "Stay reserved" })).toBeVisible();

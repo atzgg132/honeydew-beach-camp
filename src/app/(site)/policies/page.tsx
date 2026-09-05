@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { CancellationTimeline } from "@/features/policies/CancellationTimeline";
 import { childPolicy, refundNote } from "@/data/policies";
@@ -15,6 +16,21 @@ export default function PoliciesPage() {
         <h1 className="font-serif text-4xl tracking-tight md:text-5xl">Guest policies</h1>
         <p className="mt-4 max-w-2xl text-lg text-ink/75">
           Cancellation charges are calculated on the advance already paid, not on the full stay total.
+        </p>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-ink/75">
+          The booking contract lives in the{" "}
+          <Link className="underline decoration-honey underline-offset-4" href="/terms">
+            Terms &amp; Conditions
+          </Link>
+          , the{" "}
+          <Link className="underline decoration-honey underline-offset-4" href="/refunds">
+            Refunds &amp; Cancellations policy
+          </Link>
+          , and the{" "}
+          <Link className="underline decoration-honey underline-offset-4" href="/privacy">
+            Privacy Policy
+          </Link>
+          .
         </p>
 
         <section className="mt-14">

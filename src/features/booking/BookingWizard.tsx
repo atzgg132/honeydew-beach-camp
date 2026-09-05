@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -577,6 +578,20 @@ function DetailsStep({
   );
 }
 
+function TermsLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="underline decoration-honey underline-offset-4"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {children}
+    </Link>
+  );
+}
+
 function ReviewStep({
   checkIn,
   checkOut,
@@ -596,6 +611,7 @@ function ReviewStep({
 }) {
   const [quote, setQuote] = useState<Awaited<ReturnType<typeof quoteBooking>> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [agreed, setAgreed] = useState(false);
   const { adults, childrenUnder5, children5to10 } = composition;
   useEffect(() => {
     let active = true;
@@ -630,14 +646,33 @@ function ReviewStep({
         <Notice>{copy.idReminder}</Notice>
         <CallProperty />
         <p className="text-sm text-ink/65">
-          Cancellation charges apply to the advance paid. See policies for the timeline.
+          Cancellation charges apply to the advance paid. See the{" "}
+          <Link className="underline decoration-honey underline-offset-4" href="/refunds" target="_blank" rel="noreferrer">
+            Refunds &amp; Cancellations policy
+          </Link>{" "}
+          for the timeline.
         </p>
+      </div>
+      <div className="mt-6 flex items-start gap-3 border border-line p-4">
+        <input
+          id="booking-terms"
+          type="checkbox"
+          checked={agreed}
+          onChange={(event) => setAgreed(event.target.checked)}
+          className="mt-1 h-5 w-5 shrink-0"
+        />
+        <label htmlFor="booking-terms" className="text-sm leading-6">
+          I agree to the{" "}
+          <TermsLink href="/terms">Terms &amp; Conditions</TermsLink>, the{" "}
+          <TermsLink href="/refunds">Refunds &amp; Cancellations policy</TermsLink>, and the{" "}
+          <TermsLink href="/privacy">Privacy Policy</TermsLink>.
+        </label>
       </div>
       <div className="mt-8 flex gap-3">
         <Button type="button" variant="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button type="button" onClick={onContinue} disabled={!quote}>
+        <Button type="button" onClick={onContinue} disabled={!quote || !agreed}>
           Continue to advance
         </Button>
       </div>
@@ -716,6 +751,11 @@ function PayStep({
       <p className="mt-1 text-sm text-ink/70">
         Remaining {formatInr(balance)} is payable at Honey Dew Beach Camp. {copy.mealsIncluded}
       </p>
+      <p className="mt-3 text-sm text-ink/65">
+        By paying you agree to the{" "}
+        <TermsLink href="/terms">Terms &amp; Conditions</TermsLink> and the{" "}
+        <TermsLink href="/refunds">Refunds &amp; Cancellations policy</TermsLink>.
+      </p>
       <div className="mt-6 space-y-3">
         {error ? <Notice tone="error">{error}</Notice> : null}
       </div>
@@ -737,7 +777,7 @@ function PayStep({
         {authoritative && !authoritative.paymentReady ? (
           <div className="space-y-3">
             <Notice>
-              Online payment is not live yet. Call the camp to book these rooms. This page will not take a card or lock a hold.
+              Online payment opens soon. To confirm these rooms today, call the camp on the numbers below — nothing is charged on this page until online payment is enabled.
             </Notice>
             <CallProperty />
           </div>
