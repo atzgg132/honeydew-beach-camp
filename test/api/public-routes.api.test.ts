@@ -166,8 +166,8 @@ describe.skipIf(!testDatabaseUrl)("public API routes", () => {
   describe("payments", () => {
     it("reports that no production payment provider is configured", async () => {
       const { POST } = await import("@/app/api/payments/webhook/[provider]/route");
-      const response = await POST(post("/api/payments/webhook/cashfree"), {
-        params: Promise.resolve({ provider: "cashfree" }),
+      const response = await POST(post("/api/payments/webhook/razorpay"), {
+        params: Promise.resolve({ provider: "razorpay" }),
       });
       expect(response.status).toBe(404);
       expect((await readJson(response)).error?.code).toBe("PAYMENT_PROVIDER_NOT_CONFIGURED");
@@ -180,6 +180,17 @@ describe.skipIf(!testDatabaseUrl)("public API routes", () => {
       });
       expect(response.status).toBe(400);
       expect((await readJson(response)).error?.code).toBe("VALIDATION_ERROR");
+    });
+
+    it("refuses payment verification without a checkout session", async () => {
+      const { POST } = await import("@/app/api/payments/verify/route");
+      const response = await POST(post("/api/payments/verify", {
+        razorpay_payment_id: "pay_test",
+        razorpay_order_id: "order_test",
+        razorpay_signature: "a".repeat(64),
+      }));
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(["CSRF_FAILED", "CHECKOUT_SESSION_REQUIRED"]).toContain((await readJson(response)).error?.code);
     });
   });
 });

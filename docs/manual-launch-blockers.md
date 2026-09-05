@@ -33,28 +33,30 @@ Status legend: `OPEN` · `PARTIAL` (code ready, credential outstanding) · `RESO
 
 ---
 
-## B2 — Cashfree merchant account and sandbox credentials
+## B2 — Razorpay live keys and webhook secret
 
-- **Status:** OPEN
-- **Priority:** 2 — blocks online payment, and therefore blocks customer self-service booking
-- **Why:** Production checkout is deliberately disabled. The provider adapter is implemented, but it
-  cannot authenticate without merchant keys.
-- **Who:** Repository owner (Cashfree merchant onboarding requires business KYC).
+- **Status:** PARTIAL
+- **Priority:** 2 — sandbox checkout is wired; live money and webhook fallback still need dashboard work
+- **Why:** Standard Checkout creates a Razorpay order, opens the hosted modal, then verifies
+  `HMAC-SHA256(order_id + "|" + payment_id, KEY_SECRET)` before settlement. Test keys are enough
+  to exercise that path. Live keys and a webhook secret are still required before taking real money
+  and before Razorpay can confirm a payment if the guest closes the modal after paying.
+- **Who:** Repository owner (Razorpay merchant onboarding and KYC).
 - **Environment variables:**
-  - `PAYMENT_PROVIDER` — set to `cashfree`
-  - `PAYMENT_PROVIDER_KEY_ID` — the Cashfree `x-client-id`
-  - `PAYMENT_PROVIDER_KEY_SECRET` — the Cashfree `x-client-secret`
-  - `PAYMENT_WEBHOOK_SECRET` — the secret used to verify `x-webhook-signature`
-  - `CASHFREE_ENVIRONMENT` — `sandbox` or `production`
-- **Dashboard action:** Cashfree merchant dashboard → Developers → API Keys (generate **sandbox** keys
-  first). Then Developers → Webhooks → add the endpoint `https://<site>/api/payments/webhook/cashfree`
-  and subscribe to the payment success and failure events.
-- **Testable beforehand:** the full payment path is testable against the built-in `mock` provider — order
-  creation, signature verification, replay protection, amount and currency validation, duplicate and
-  out-of-order events, and the paid-after-hold-expiry path.
-- **Afterwards:** set the variables in Vercel Preview with sandbox keys, redeploy, run the sandbox
-  end-to-end test, and only then consider production keys.
-- **Do not** set production keys until the owner explicitly approves live activation. No real money is to
+  - `PAYMENT_PROVIDER` — set to `razorpay`
+  - `RAZORPAY_KEY_ID` — the Key ID (`rzp_test_…` in sandbox, `rzp_live_…` in production)
+  - `RAZORPAY_KEY_SECRET` — the Key Secret. Server-only.
+  - `NEXT_PUBLIC_RAZORPAY_KEY_ID` — the same Key ID, for the checkout modal
+  - `PAYMENT_WEBHOOK_SECRET` — the webhook secret used to verify `X-Razorpay-Signature`
+- **Dashboard action:** Razorpay Dashboard → Account & Settings → API Keys (start with **test** keys).
+  Then Developers → Webhooks → add `https://<site>/api/payments/webhook/razorpay` and subscribe to
+  `payment.captured` and `order.paid`.
+- **Testable beforehand:** test-mode Standard Checkout against the test keys, plus the development
+  simulator (`ENABLE_DEV_PAYMENT=true`, `PAYMENT_PROVIDER=dev`) used by CI. Settlement, amount
+  checks, replay protection, and the paid-after-hold-expiry path are shared with the simulator.
+- **Afterwards:** set the same variable names in Vercel Preview with test keys, redeploy, complete a
+  sandbox booking, and only then switch Production to live keys.
+- **Do not** set live keys until the owner explicitly approves live activation. No real money is to
   move during testing.
 
 ---
@@ -116,7 +118,7 @@ Status legend: `OPEN` · `PARTIAL` (code ready, credential outstanding) · `RESO
 - **DNS action:** Vercel project → Settings → Domains → add the domain, then create the `A` / `CNAME`
   records Vercel displays, at the registrar.
 - **Testable beforehand:** everything, by setting `NEXT_PUBLIC_SITE_URL` locally.
-- **Afterwards:** set `NEXT_PUBLIC_SITE_URL` to `https://honeydewbeachcamp.com` in Vercel, redeploy, re-register the Cashfree webhook URL
+- **Afterwards:** set `NEXT_PUBLIC_SITE_URL` to `https://honeydewbeachcamp.com` in Vercel, redeploy, re-register the Razorpay webhook URL
   (B2), and re-run the production smoke tests. Keep the `.vercel.app` host resolving until the custom
   domain has been validated.
 

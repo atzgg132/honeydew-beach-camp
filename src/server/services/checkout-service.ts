@@ -12,6 +12,7 @@ import { allocateRooms } from "@/server/services/allocation";
 import { dateOnlyToUtc } from "@/server/services/availability-service";
 import { loadCurrentBookingConfig } from "@/server/services/booking-config-service";
 import { bookingMoneyFields, bookingRoomCreateData, contactFields, reservationRows } from "@/server/services/booking-record";
+import { onlinePaymentsEnabled } from "@/server/payments/runtime";
 import { createQuote, readQuoteToken } from "@/server/services/quote-service";
 import { withSerializableRetry } from "@/server/services/serializable";
 
@@ -144,7 +145,7 @@ export async function createHold(input: {
 
 function sessionResult(holdId: string, expiresAt: string, idempotencyKey: string) {
   return {
-    data: { holdId, expiresAt, paymentReady: process.env.NODE_ENV !== "production" && process.env.ENABLE_DEV_PAYMENT === "true" },
+    data: { holdId, expiresAt, paymentReady: onlinePaymentsEnabled() },
     token: deriveToken("checkout-session", holdId, idempotencyKey),
     csrf: deriveToken("checkout-csrf", holdId, idempotencyKey),
     cookieExpiresAt: new Date(new Date(expiresAt).getTime() + 24 * 60 * 60_000),

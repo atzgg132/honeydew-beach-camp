@@ -146,9 +146,28 @@ export async function createCheckoutHold(quoteToken: string, contact: BookingCon
 }
 
 export async function createPaymentOrder(holdId: string) {
-  return api<{ orderId: string; amountPaise: number; currency: string; clientData: { mode?: string } }>(
+  return api<{
+    orderId: string;
+    provider: string;
+    amountPaise: number;
+    currency: string;
+    expiresAt: string;
+    clientData: { mode?: string; keyId?: string; providerOrderId?: string };
+  }>(
     `/api/checkout/holds/${encodeURIComponent(holdId)}/payment-order`,
     { method: "POST", headers: await commandHeaders("payment-order", holdId) },
+    "checkout",
+  );
+}
+
+export async function verifyRazorpayPayment(input: {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}) {
+  return api<{ bookingId: string; status: string; reference?: string | null }>(
+    "/api/payments/verify",
+    { method: "POST", body: JSON.stringify(input) },
     "checkout",
   );
 }

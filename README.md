@@ -11,7 +11,7 @@ Customer website and server-authoritative booking application for Honey Dew Beac
 - Integer paise pricing, basis-point percentages, and immutable tariff/policy revisions
 - Signed 10-minute quotes and transactionally allocated 15-minute holds
 - Opaque checkout and Manage Booking sessions with HttpOnly cookies and CSRF protection
-- Development-only payment provider; production checkout remains unavailable until a real provider is configured
+- Razorpay Standard Checkout for the stay advance; a development-only simulator remains for CI
 
 Browser calculations are responsive previews only. PostgreSQL and the server booking domain own availability, allocation, price, payment state, outstanding balances, changes, and cancellation.
 
@@ -29,7 +29,9 @@ npm run db:seed
 npm run dev
 ```
 
-`ENABLE_DEV_PAYMENT=true` enables the local payment simulator only when `NODE_ENV` is not `production`.
+`PAYMENT_PROVIDER=razorpay` with `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` enables Standard Checkout.
+`ENABLE_DEV_PAYMENT=true` enables the local payment simulator only when `NODE_ENV` is not `production`
+(used by CI; set `PAYMENT_PROVIDER=dev` to force it when Razorpay keys are also present).
 
 ## Commands
 
@@ -87,7 +89,14 @@ Never use `prisma db push` in production. Custom checks, partial indexes, and th
 
 ## Payment activation
 
-The checked-in payment interface, order/transaction tables, replay-safe webhook table, and dev adapter are the integration seam. Before enabling production checkout, add a real provider adapter, raw-body signature verification, provider sandbox end-to-end tests, reconciliation, and the production cron secret. The current webhook endpoint deliberately reports that no production provider is configured.
+Checkout creates a Razorpay order for the held advance, opens Standard Checkout, and confirms the
+booking only after the HMAC signature matches. A webhook at `/api/payments/webhook/razorpay` is the
+fallback when the guest closes the modal after paying.
+
+Set `PAYMENT_PROVIDER=razorpay`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and
+`NEXT_PUBLIC_RAZORPAY_KEY_ID` in `.env.local` and in Vercel. Add `PAYMENT_WEBHOOK_SECRET` once the
+Razorpay webhook is registered. Live keys stay off until the owner approves taking real money. See
+blocker **B2**.
 
 ## Operational rules
 

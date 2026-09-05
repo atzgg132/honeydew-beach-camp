@@ -32,7 +32,9 @@ import {
   quoteBooking,
   searchAvailability,
   succeedDevelopmentPayment,
+  verifyRazorpayPayment,
 } from "@/lib/booking/booking-service.api";
+import { openRazorpayCheckout } from "@/lib/booking/razorpay-checkout";
 import type { AcMode, Arrangement, Availability, BookingContact, GuestComposition, RoomAllocation } from "@/types";
 
 const DRAFT_KEY = "honeydew.booking-intent.v3";
@@ -726,7 +728,29 @@ function PayStep({
       if (!checkoutHold) setCheckoutHold(hold);
       if (!hold.paymentReady) throw new Error("Online payment is not available. Call the camp to book.");
       const order = await createPaymentOrder(hold.holdId);
-      await succeedDevelopmentPayment(order.orderId);
+      if (order.provider === "razorpay") {
+        const keyId = order.clientData.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "";
+        const razorpayOrderId = order.clientData.providerOrderId;
+        if (!keyId || !razorpayOrderId) {
+          throw new Error("Online payment is not available. Call the camp to book.");
+        }
+        const checkout = await openRazorpayCheckout({
+          keyId,
+          orderId: razorpayOrderId,
+          amountPaise: order.amountPaise,
+          currency: order.currency,
+          name: hotel.name,
+          description: `Stay advance ${formatInr(order.amountPaise / 100)}`,
+          prefill: {
+            name: contact.fullName,
+            email: contact.email,
+            contact: contact.phone,
+          },
+        });
+        await verifyRazorpayPayment(checkout);
+      } else {
+        await succeedDevelopmentPayment(order.orderId);
+      }
       clearDraft();
       router.push(`/book/confirmed?checkout=${encodeURIComponent(hold.holdId)}`);
     } catch (caught) {

@@ -33,15 +33,19 @@ export default defineConfig({
     : {
         // Deliberately the development server, not `next start`. A production build sets
         // NODE_ENV=production, which disables the development payment simulator by design,
-        // and the booking suite needs to complete a payment. CI runs `next build`
-        // separately so build failures are still caught. This moves to a production build
-        // once a non-development payment provider is configurable.
+        // and the booking suite needs to complete a payment without opening Razorpay.
+        // CI runs `next build` separately so build failures are still caught.
         command: "npx next dev --hostname 127.0.0.1 --port 3000",
         url: "http://127.0.0.1:3000",
         reuseExistingServer: !isCI,
         timeout: 180_000,
         stdout: "pipe",
         stderr: "pipe",
+        env: {
+          ...process.env,
+          ENABLE_DEV_PAYMENT: "true",
+          PAYMENT_PROVIDER: "dev",
+        },
       },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

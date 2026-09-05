@@ -54,3 +54,20 @@ export interface QuoteResponseDto {
   policyRevision: number;
   paymentReady: boolean;
 }
+
+export const razorpayCheckoutResponseContract = z.object({
+  razorpay_payment_id: z.string().trim().min(1).max(64),
+  razorpay_order_id: z.string().trim().min(1).max(64),
+  razorpay_signature: z.string().trim().min(1).max(128),
+});
+
+export type RazorpayCheckoutResponse = z.infer<typeof razorpayCheckoutResponseContract>;
+
+export interface PaymentOrderDto {
+  orderId: string;
+  provider: string;
+  amountPaise: number;
+  currency: string;
+  expiresAt: string;
+  clientData: Record<string, string>;
+}

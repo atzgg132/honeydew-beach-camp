@@ -1,14 +1,51 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import type { PaymentOrderDto } from "@/contracts/checkout";
 import { ApiError } from "@/contracts/errors";
 import { sha256 } from "@/server/crypto";
 import { db } from "@/server/db/client";
-import { devPaymentProvider, requireDevPayments } from "@/server/payments/dev-provider";
+import { requireDevPayments } from "@/server/payments/dev-provider";
+import { reportError } from "@/server/observability/errors";
+import { getCheckoutPaymentProvider } from "@/server/payments/runtime";
+import {
+  fetchRazorpayPayment,
+  razorpayKeyId,
+  verifyRazorpayCheckoutSignature,
+} from "@/server/payments/razorpay-provider";
 import { settleVerifiedPayment } from "@/server/services/payment-settlement";
 
-export async function createDevPaymentOrder(input: { bookingId: string; idempotencyKey: string }) {
-  requireDevPayments();
+const MIN_AMOUNT_PAISE = 100;
+
+function orderClientData(provider: string, providerOrderId: string): Record<string, string> {
+  if (provider === "razorpay") {
+    const keyId = razorpayKeyId() ?? "";
+    return { keyId, providerOrderId };
+  }
+  return { mode: "development", providerOrderId };
+}
+
+function toPaymentOrderDto(order: {
+  id: string;
+  provider: string;
+  providerOrderId: string | null;
+  amountPaise: number;
+  currency: string;
+  providerExpiresAt: Date | null;
+}, fallbackExpiresAt: Date, clientData?: Record<string, string>): PaymentOrderDto {
+  const providerOrderId = order.providerOrderId ?? "";
+  return {
+    orderId: order.id,
+    provider: order.provider,
+    amountPaise: order.amountPaise,
+    currency: order.currency,
+    expiresAt: (order.providerExpiresAt ?? fallbackExpiresAt).toISOString(),
+    clientData: clientData ?? orderClientData(order.provider, providerOrderId),
+  };
+}
+
+export async function createPaymentOrder(input: { bookingId: string; idempotencyKey: string }) {
+  const provider = getCheckoutPaymentProvider();
   const prisma = db();
   const keyHash = sha256(input.idempotencyKey);
   const requestHash = sha256(input.bookingId);
@@ -18,31 +55,22 @@ export async function createDevPaymentOrder(input: { bookingId: string; idempote
     if (replay.requestHash !== requestHash || !replay.responseBody) {
       throw new ApiError(409, "IDEMPOTENCY_CONFLICT", "That idempotency key was used for another request.");
     }
-    return replay.responseBody as {
-      orderId: string;
-      provider: string;
-      amountPaise: number;
-      currency: string;
-      expiresAt: string;
-      clientData: Record<string, string>;
-    };
+    return replay.responseBody as unknown as PaymentOrderDto;
   }
   const booking = await prisma.booking.findUnique({ where: { id: input.bookingId }, include: { payments: true } });
   if (!booking) throw new ApiError(404, "NOT_FOUND", "The checkout was not found.");
   if (booking.status !== "PENDING_PAYMENT") throw new ApiError(409, "INVALID_STATE", "This checkout cannot accept payment.");
   if (!booking.holdExpiresAt || booking.holdExpiresAt <= new Date()) throw new ApiError(409, "HOLD_EXPIRED", "The room hold has expired.");
+  if (booking.advanceDuePaise < MIN_AMOUNT_PAISE) {
+    throw new ApiError(400, "VALIDATION_ERROR", "The payment amount is below the minimum.", {
+      amount: ["Minimum amount is 100 paise."],
+    });
+  }
   const existingOrder = booking.payments.find((order) => order.status === "PENDING" || order.status === "CREATED");
   if (existingOrder) {
-    return {
-      orderId: existingOrder.id,
-      provider: existingOrder.provider,
-      amountPaise: existingOrder.amountPaise,
-      currency: existingOrder.currency,
-      expiresAt: existingOrder.providerExpiresAt?.toISOString() ?? booking.holdExpiresAt.toISOString(),
-      clientData: { mode: "development", providerOrderId: existingOrder.providerOrderId ?? "" },
-    };
+    return toPaymentOrderDto(existingOrder, booking.holdExpiresAt);
   }
-  const providerOrder = await devPaymentProvider.createOrder({
+  const providerOrder = await provider.createOrder({
     idempotencyKey: input.idempotencyKey,
     amountPaise: booking.advanceDuePaise,
     currency: "INR",
@@ -67,16 +95,11 @@ export async function createDevPaymentOrder(input: { bookingId: string; idempote
         providerExpiresAt: providerOrder.expiresAt,
       },
     });
-    const responseBody = {
-      orderId: order.id,
-      provider: order.provider,
-      amountPaise: order.amountPaise,
-      currency: order.currency,
-      expiresAt: order.providerExpiresAt?.toISOString() ?? current.holdExpiresAt.toISOString(),
-      clientData: concurrentOrder
-        ? { mode: "development", providerOrderId: concurrentOrder.providerOrderId ?? "" }
-        : providerOrder.clientData,
-    };
+    const responseBody = toPaymentOrderDto(
+      order,
+      current.holdExpiresAt,
+      concurrentOrder ? undefined : providerOrder.clientData,
+    );
     await transaction.idempotencyRequest.create({
       data: {
         scope,
@@ -84,7 +107,7 @@ export async function createDevPaymentOrder(input: { bookingId: string; idempote
         requestHash,
         bookingId: booking.id,
         responseStatus: 200,
-        responseBody,
+        responseBody: { ...responseBody },
         expiresAt: new Date(Date.now() + 24 * 60 * 60_000),
       },
     });
@@ -94,14 +117,7 @@ export async function createDevPaymentOrder(input: { bookingId: string; idempote
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const concurrentReplay = await prisma.idempotencyRequest.findUnique({ where: { scope_keyHash: { scope, keyHash } } });
       if (concurrentReplay?.requestHash === requestHash && concurrentReplay.responseBody) {
-        return concurrentReplay.responseBody as {
-          orderId: string;
-          provider: string;
-          amountPaise: number;
-          currency: string;
-          expiresAt: string;
-          clientData: Record<string, string>;
-        };
+        return concurrentReplay.responseBody as unknown as PaymentOrderDto;
       }
     }
     throw error;
@@ -142,4 +158,62 @@ export async function succeedDevPayment(orderId: string, sessionBookingId: strin
     throw new ApiError(409, "PAID_UNALLOCATED", "Payment arrived after the room hold expired. The hotel must review it.");
   }
   return { bookingId: result.bookingId, status: "confirmed" as const, reference: result.reference };
+}
+
+export async function verifyRazorpayCheckoutPayment(input: {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+  sessionBookingId: string;
+}) {
+  if (!verifyRazorpayCheckoutSignature({
+    orderId: input.razorpay_order_id,
+    paymentId: input.razorpay_payment_id,
+    signature: input.razorpay_signature,
+  })) {
+    throw new ApiError(400, "PAYMENT_SIGNATURE_INVALID", "The payment signature is invalid.");
+  }
+
+  const order = await db().paymentOrder.findUnique({
+    where: {
+      provider_providerOrderId: { provider: "razorpay", providerOrderId: input.razorpay_order_id },
+    },
+    select: { id: true, bookingId: true, providerOrderId: true },
+  });
+  if (!order || order.bookingId !== input.sessionBookingId) {
+    throw new ApiError(404, "NOT_FOUND", "The payment order was not found.");
+  }
+
+  const payment = await fetchRazorpayPayment(input.razorpay_payment_id);
+  if (payment.orderId !== input.razorpay_order_id) {
+    throw new ApiError(400, "PAYMENT_SIGNATURE_INVALID", "The payment does not belong to this order.");
+  }
+  if (!payment.captured) {
+    throw new ApiError(409, "PAYMENT_NOT_CAPTURED", "The payment has not been captured yet.");
+  }
+
+  const result = await settleVerifiedPayment({
+    provider: "razorpay",
+    providerEventId: payment.id,
+    eventType: "payment.captured",
+    providerOrderId: payment.orderId,
+    providerPaymentId: payment.id,
+    amountPaise: payment.amountPaise,
+    currency: payment.currency,
+    paidAt: payment.paidAt,
+  });
+
+  if (result.status === "paid_unallocated") {
+    reportError({
+      kind: "payment.paid_unallocated",
+      message: "Razorpay payment arrived after the room hold expired",
+      context: { providerName: "razorpay" },
+    });
+    throw new ApiError(409, "PAID_UNALLOCATED", "Payment arrived after the room hold expired. The hotel must review it.");
+  }
+  return {
+    bookingId: result.bookingId,
+    status: "confirmed" as const,
+    reference: result.reference,
+  };
 }

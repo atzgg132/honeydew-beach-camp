@@ -55,15 +55,14 @@ that recomputes those hashes.
 
 | Name | Required | Purpose |
 |---|---|---|
-| `PAYMENT_PROVIDER` | runtime | Selects the adapter: `cashfree`, `mock`, or `dev`. Resolving `dev` is refused when `NODE_ENV` is production. |
-| `PAYMENT_PROVIDER_KEY_ID` | runtime | Cashfree `x-client-id`. |
-| `PAYMENT_PROVIDER_KEY_SECRET` | runtime | Cashfree `x-client-secret`. |
-| `PAYMENT_WEBHOOK_SECRET` | runtime | Verifies `x-webhook-signature` on incoming webhooks. |
-| `CASHFREE_ENVIRONMENT` | runtime | `sandbox` or `production`. |
-| `ENABLE_DEV_PAYMENT` | optional | Enables the local payment simulator. Only honoured when `NODE_ENV` is not production, and the dev route returns 404 in production regardless. Used by CI so the browser suite can complete a booking. |
+| `PAYMENT_PROVIDER` | runtime | Selects the adapter: `razorpay` or `dev`. Resolving `dev` is refused when `NODE_ENV` is production. Unset falls through to Razorpay when keys are present, otherwise to the development simulator. |
+| `RAZORPAY_KEY_ID` | runtime | Razorpay Key ID. Public; also accepted as `PAYMENT_PROVIDER_KEY_ID`. |
+| `RAZORPAY_KEY_SECRET` | runtime | Razorpay Key Secret. Server-only; never sent to the browser. Also accepted as `PAYMENT_PROVIDER_KEY_SECRET`. |
+| `NEXT_PUBLIC_RAZORPAY_KEY_ID` | runtime | Same Key ID, exposed to the checkout modal. The create-order response also returns it in `clientData.keyId`. |
+| `PAYMENT_WEBHOOK_SECRET` | runtime | Razorpay webhook secret. Verifies `X-Razorpay-Signature` on `/api/payments/webhook/razorpay`. Also accepted as `RAZORPAY_WEBHOOK_SECRET`. Checkout still confirms without this, via `/api/payments/verify`. |
+| `ENABLE_DEV_PAYMENT` | optional | Enables the local payment simulator. Only honoured when `NODE_ENV` is not production, and the dev route returns 404 in production regardless. Used by CI so the browser suite can complete a booking without Razorpay. |
 
-See blocker **B2**. Until credentials exist, the full payment path is exercised against the
-`mock` provider.
+See blocker **B2**. Test keys enable sandbox checkout. Live keys and a webhook secret are still required before taking real money.
 
 ## Notifications
 
