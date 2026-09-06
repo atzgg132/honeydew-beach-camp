@@ -1,6 +1,6 @@
 import type { BookingPriceDto, QuoteRequestInput } from "@/contracts/booking";
 import type { ServerArrangement } from "@/domain/booking/arrangements";
-import type { Arrangement, Availability, Booking, BookingContact, BookingPricingSnapshot, CancellationQuote, GuestComposition, RoomAllocation } from "@/types";
+import type { Arrangement, Availability, Booking, BookingContact, BookingPricingSnapshot, CancellationQuote, GuestComposition, PaymentExceptionInfo, RoomAllocation } from "@/types";
 
 interface ErrorEnvelope {
   error?: { code?: string; message?: string; fields?: Record<string, string[]>; requestId?: string };
@@ -125,6 +125,13 @@ export async function searchAvailability(input: {
   };
 }
 
+export async function submitContactEnquiry(input: { name: string; phone: string; email: string; message: string }) {
+  return api<{ received: boolean }>("/api/contact", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function quoteBooking(input: {
   checkIn: string;
   checkOut: string;
@@ -181,7 +188,7 @@ export async function succeedDevelopmentPayment(orderId: string) {
 }
 
 export async function getCheckout(holdId: string) {
-  return api<{ holdId: string; status: string; expiresAt: string | null; booking: Booking | null }>(
+  return api<{ holdId: string; status: string; expiresAt: string | null; booking: Booking | null; paymentException: PaymentExceptionInfo | null }>(
     `/api/checkout/holds/${encodeURIComponent(holdId)}`,
   );
 }

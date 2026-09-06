@@ -47,12 +47,15 @@ export function RefundActions({
             className="flex flex-wrap items-end gap-2"
             onSubmit={(event) => {
               event.preventDefault();
-              const rupees = Number(new FormData(event.currentTarget).get("refund"));
+              const form = new FormData(event.currentTarget);
+              const rupees = Number(form.get("refund"));
+              const reference = String(form.get("reference") ?? "").trim();
               onRun(
                 () =>
                   adminRefundAction(cancellationId, {
                     action: "process",
                     actualRefundPaise: Math.round(rupees * 100),
+                    ...(reference ? { reference } : {}),
                   }),
                 "Refund marked processed.",
               );
@@ -66,6 +69,16 @@ export function RefundActions({
                 min={0}
                 step={1}
                 defaultValue={Math.round(refundablePaise / 100)}
+              />
+            </Field>
+            <Field id={`reference-${cancellationId}`} label="RRN / refund reference">
+              <TextInput
+                id={`reference-${cancellationId}`}
+                name="reference"
+                autoComplete="off"
+                minLength={6}
+                maxLength={64}
+                placeholder="12-digit UTR/RRN"
               />
             </Field>
             <Button type="submit" disabled={pending}>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarBlank, CurrencyInr, Door, DotsThree, House, Receipt, SignOut } from "@phosphor-icons/react";
+import { Bell, CalendarBlank, CurrencyInr, Door, DotsThree, House, Receipt, SignOut } from "@phosphor-icons/react";
 import { Logo } from "@/components/brand/Logo";
 import { adminLogout } from "@/features/admin/api";
 import { cn } from "@/lib/cn";
@@ -12,6 +12,7 @@ const desktopLinks = [
   { href: "/admin/bookings", label: "Bookings", icon: CalendarBlank },
   { href: "/admin/rooms", label: "Rooms", icon: Door },
   { href: "/admin/refunds", label: "Refunds", icon: Receipt },
+  { href: "/admin/notifications", label: "Notifications", icon: Bell },
   { href: "/admin/pricing", label: "Pricing", icon: CurrencyInr },
 ] as const;
 
@@ -31,6 +32,8 @@ function moreActive(pathname: string) {
     pathname.startsWith("/admin/bookings/new/") ||
     pathname === "/admin/refunds" ||
     pathname.startsWith("/admin/refunds/") ||
+    pathname === "/admin/notifications" ||
+    pathname.startsWith("/admin/notifications/") ||
     pathname === "/admin/pricing" ||
     pathname.startsWith("/admin/pricing/")
   );
@@ -140,6 +143,9 @@ export function AdminShell({ email, children }: { email: string; children: React
             </Link>
             <Link href="/admin/refunds" className="block min-h-11 px-3 py-2 text-sm">
               Refunds
+            </Link>
+            <Link href="/admin/notifications" className="block min-h-11 px-3 py-2 text-sm">
+              Notifications
             </Link>
             <Link href="/admin/pricing" className="block min-h-11 px-3 py-2 text-sm">
               Pricing

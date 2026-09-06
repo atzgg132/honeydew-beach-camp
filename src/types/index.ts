@@ -98,6 +98,18 @@ export interface CancellationSlab {
   explanation: string;
 }
 
+export interface CancellationRefund {
+  actualRefund: number;
+  processedAt: string | null;
+  reference: string | null;
+}
+
+export interface PaymentExceptionInfo {
+  state: "paid_unallocated";
+  amountPaid: number;
+  paidAt: string | null;
+}
+
 export interface CancellationQuote {
   slab: CancellationSlab;
   hoursUntilCheckIn: number;
@@ -106,6 +118,7 @@ export interface CancellationQuote {
   charge: number;
   refundable: number;
   refundControlledByHotel: true;
+  refund?: CancellationRefund;
 }
 
 export interface Booking {
@@ -122,6 +135,7 @@ export interface Booking {
   pricing: BookingPricingSnapshot;
   advancePaid: number;
   outstanding: number;
+  paymentException?: PaymentExceptionInfo;
   cancellationQuote?: CancellationQuote;
   createdAt: string;
   updatedAt: string;

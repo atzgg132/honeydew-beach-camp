@@ -223,6 +223,10 @@ export async function adminRefundAction(
   }, true);
 }
 
+export async function adminRetryNotification(id: string) {
+  return api<{ id: string; status: string }>(`/api/admin/notifications/${id}/retry`, { method: "POST" }, true);
+}
+
 export async function adminCreateBlock(input: { roomId: string; checkIn: string; checkOut: string; reason: string }) {
   return api<{ id: string; roomNumber: string }>(
     "/api/admin/room-blocks",

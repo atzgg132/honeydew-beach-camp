@@ -7,7 +7,7 @@ import { priceBookingPaise } from "@/domain/booking/pricing";
 import { validateRoomIntent } from "@/domain/booking/validation";
 import { deriveToken, sha256 } from "@/server/crypto";
 import { db } from "@/server/db/client";
-import { customerBookingInclude, toCustomerBooking } from "@/server/dto";
+import { customerBookingInclude, toCustomerBooking, toPaymentException } from "@/server/dto";
 import { allocateRooms } from "@/server/services/allocation";
 import { dateOnlyToUtc } from "@/server/services/availability-service";
 import { loadCurrentBookingConfig } from "@/server/services/booking-config-service";
@@ -155,10 +155,15 @@ function sessionResult(holdId: string, expiresAt: string, idempotencyKey: string
 export async function getCheckoutStatus(bookingId: string) {
   const record = await db().booking.findUnique({ where: { id: bookingId }, include: customerBookingInclude });
   if (!record) throw new ApiError(404, "NOT_FOUND", "The checkout was not found.");
+  // Read-only guest visibility for money settlement could not allocate: the booking
+  // stays unconfirmed and settlement remains the only path that can confirm it. When
+  // no unallocated order exists this is null and every existing caller is unaffected.
+  const paymentException = toPaymentException(record.payments) ?? null;
   return {
     holdId: record.id,
     status: record.status.toLowerCase(),
     expiresAt: record.holdExpiresAt?.toISOString() ?? null,
     booking: record.status === "CONFIRMED" || record.status === "CANCELLED" ? toCustomerBooking(record) : null,
+    paymentException,
   };
 }

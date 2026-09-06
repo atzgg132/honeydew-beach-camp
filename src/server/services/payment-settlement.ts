@@ -6,6 +6,7 @@ import { sha256 } from "@/server/crypto";
 import { db } from "@/server/db/client";
 import type { VerifiedPaymentEvent } from "@/server/payments/provider";
 import { allocateReference } from "@/server/services/reference";
+import { notifyBookingConfirmed, notifyPaymentException } from "@/server/notifications/notify";
 
 /**
  * Settlement: turning a verified payment into a confirmed booking.
@@ -98,6 +99,7 @@ export async function settleVerifiedPayment(event: VerifiedPaymentEvent): Promis
         return { status: "already_confirmed", bookingId: current.bookingId, reference: current.booking.reference };
       }
       if (current.status === "PAID_UNALLOCATED") {
+        // Redelivery of an already-recorded exception: the alert was queued with it.
         await finish("PAID_UNALLOCATED");
         return { status: "paid_unallocated", bookingId: current.bookingId };
       }
@@ -105,10 +107,24 @@ export async function settleVerifiedPayment(event: VerifiedPaymentEvent): Promis
       // The provider must have charged exactly what we asked for. A mismatch is never
       // reconciled automatically; it is an exception for staff to resolve.
       if (event.amountPaise !== current.amountPaise || event.currency !== current.currency) {
+        await notifyPaymentException(transaction, {
+          bookingId: current.bookingId,
+          reference: current.booking.reference,
+          reason: "The provider charged an amount that does not match the order.",
+          amountPaise: event.amountPaise,
+          dedupeKey: `staff-payment-exception:amount-mismatch:${event.provider}:${event.providerEventId}`,
+        });
         await finish("AMOUNT_MISMATCH");
         throw new ApiError(409, "PAYMENT_AMOUNT_MISMATCH", "The payment amount does not match the order.");
       }
       if (current.amountPaise !== current.booking.advanceDuePaise) {
+        await notifyPaymentException(transaction, {
+          bookingId: current.bookingId,
+          reference: current.booking.reference,
+          reason: "The order amount does not match the advance due on the booking.",
+          amountPaise: event.amountPaise,
+          dedupeKey: `staff-payment-exception:amount-mismatch:${event.provider}:${event.providerEventId}`,
+        });
         await finish("AMOUNT_MISMATCH");
         throw new ApiError(409, "PAYMENT_AMOUNT_MISMATCH", "The payment amount does not match the booking.");
       }
@@ -148,6 +164,13 @@ export async function settleVerifiedPayment(event: VerifiedPaymentEvent): Promis
             data: { paymentOrderId: current.id, providerPaymentId: event.providerPaymentId },
           },
         });
+        await notifyPaymentException(transaction, {
+          bookingId: current.bookingId,
+          reference: current.booking.reference,
+          reason: "Payment arrived after the room hold expired and could not be allocated to rooms.",
+          amountPaise: event.amountPaise,
+          dedupeKey: `staff-payment-exception:paid-unallocated:${current.id}`,
+        });
         await finish("PAID_UNALLOCATED");
         return { status: "paid_unallocated", bookingId: current.bookingId };
       }
@@ -186,6 +209,10 @@ export async function settleVerifiedPayment(event: VerifiedPaymentEvent): Promis
             },
           },
         },
+      });
+      await notifyBookingConfirmed(transaction, {
+        bookingId: current.bookingId,
+        receipt: { orderId: current.id, amountPaise: event.amountPaise, paidAt: event.paidAt },
       });
       await finish("CONFIRMED");
 

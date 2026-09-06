@@ -10,6 +10,7 @@ import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ConfirmDialog } from "@/components/ui/Dialog";
 import { PriceBreakdown } from "@/components/booking/PriceBreakdown";
+import { RefundReceipt } from "@/features/booking/RefundReceipt";
 import { GuestStepper } from "@/components/booking/GuestStepper";
 import { CallProperty } from "@/components/booking/CallProperty";
 import { copy } from "@/data/copy";
@@ -20,6 +21,7 @@ import { formatInr } from "@/lib/format";
 import { priceBooking } from "@/lib/booking/pricing";
 import { rebalanceExistingRooms } from "@/lib/booking/rebalance";
 import {
+  BookingApiError,
   applyManagedAcUpgrade,
   applyManagedGuestChange,
   cancelManagedBooking,
@@ -73,6 +75,16 @@ export function ManageBooking() {
   return <LookupForm initialReference={search.get("ref") ?? ""} error={error} onError={setError} onFound={setBooking} />;
 }
 
+function lookupErrorCopy(caught: unknown): string {
+  if (caught instanceof BookingApiError && caught.code === "RATE_LIMITED") {
+    return "Too many attempts. Wait a few minutes before trying again.";
+  }
+  if (caught instanceof BookingApiError && caught.code === "VERIFICATION_FAILED") {
+    return "No booking matches those details. Check the reference in your confirmation message and the phone number on the stay. If you paid but never received a reference, do not pay again â€” use your confirmation page or contact the camp.";
+  }
+  return caught instanceof Error ? caught.message : "No booking matches those details.";
+}
+
 function LookupForm({ initialReference, error, onError, onFound }: {
   initialReference: string;
   error: string | null;
@@ -90,7 +102,7 @@ function LookupForm({ initialReference, error, onError, onFound }: {
           onError(null);
           onFound(result.booking);
         } catch (caught) {
-          onError(caught instanceof Error ? caught.message : "No booking matches those details.");
+          onError(lookupErrorCopy(caught));
         }
       })}>
         <Field id="reference" label="Booking reference" error={form.formState.errors.reference?.message}>
@@ -127,6 +139,7 @@ function BookingFolio({ booking, onChange, onClear }: { booking: Booking; onChan
         <p className="text-sm uppercase tracking-[0.16em] text-ink/50">Reference</p>
         <h1 className="font-serif text-3xl tracking-tight">{booking.reference}</h1>
         <div className="mt-3 flex flex-wrap gap-2"><StatusBadge status={booking.status} /><StatusBadge status={booking.paymentStatus} kind="payment" /></div>
+        {booking.paymentException ? <div className="mt-4"><Notice tone="error">We received {formatInr(booking.paymentException.amountPaid)} after the room hold expired, so it is waiting on the camp â€” not on a room. The camp will reallocate rooms or refund the amount; only the camp can confirm it from here. Do not pay again.</Notice></div> : null}
         <div className="mt-8 space-y-1 text-base leading-7">
           <p>{booking.contact.fullName}</p><p>{booking.contact.phone}</p><p>{booking.contact.email}</p>
           <p>{formatDisplayDate(booking.checkIn)} to {formatDisplayDate(booking.checkOut)}</p>
@@ -134,6 +147,7 @@ function BookingFolio({ booking, onChange, onClear }: { booking: Booking; onChan
         </div>
         <div className="mt-8"><PriceBreakdown snapshot={booking.pricing} recorded={{ advancePaid: booking.advancePaid, outstanding: booking.outstanding, status: booking.status }} /></div>
         {booking.cancellationQuote ? <div className="mt-6"><Notice>{booking.cancellationQuote.slab.label}. Charge {formatInr(booking.cancellationQuote.charge)}. Refundable {formatInr(booking.cancellationQuote.refundable)}. {refundNote}</Notice></div> : null}
+        {booking.cancellationQuote?.refund ? <div className="mt-6"><RefundReceipt refund={booking.cancellationQuote.refund} /></div> : null}
       </div>
       <aside className="space-y-6 lg:space-y-8">
         {!locked ? <>
@@ -147,6 +161,7 @@ function BookingFolio({ booking, onChange, onClear }: { booking: Booking; onChan
           <FolioPanel title="Cancellation"><CancelPanel onChange={onChange} /></FolioPanel>
         </> : <Notice>This booking can only be viewed.</Notice>}
         <CallProperty />
+        <Button href="/api/manage-booking/voucher" variant="secondary">Download voucher (PDF)</Button>
         <Button type="button" variant="secondary" onClick={onClear}>Look up another booking</Button>
       </aside>
     </div>

@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { bookingContactContract, compositionContract, dateOnlySchema, roomIntentContract } from "@/contracts/booking";
 import { tariffTable } from "@/data/tariff-table";
+import {
+  REFUND_REFERENCE_MAX_LENGTH,
+  REFUND_REFERENCE_MESSAGE,
+  REFUND_REFERENCE_MIN_LENGTH,
+  REFUND_REFERENCE_PATTERN,
+} from "@/domain/booking/refund-reference";
 
 export const adminLoginContract = z.object({
   email: z.string().trim().email().max(254),
@@ -57,7 +63,13 @@ export const adminRefundActionContract = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("process"),
     actualRefundPaise: z.number().int().min(0),
-    reference: z.string().trim().max(80).optional(),
+    reference: z
+      .string()
+      .trim()
+      .min(REFUND_REFERENCE_MIN_LENGTH, REFUND_REFERENCE_MESSAGE)
+      .max(REFUND_REFERENCE_MAX_LENGTH, REFUND_REFERENCE_MESSAGE)
+      .regex(REFUND_REFERENCE_PATTERN, REFUND_REFERENCE_MESSAGE)
+      .optional(),
   }),
 ]);
 

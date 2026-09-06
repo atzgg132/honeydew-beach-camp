@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Notice } from "@/components/ui/Notice";
 import { RefundActions } from "@/features/admin/bookings/RefundActions";
 import { useAdminAction } from "@/features/admin/ui/useAdminAction";
+import { formatIstDateTime } from "@/lib/dates";
 import { formatInrPaise } from "@/lib/format";
 
 export function RefundsList({
@@ -48,5 +49,40 @@ export function RefundsList({
         ))}
       </ul>
     </div>
+  );
+}
+
+export interface ProcessedRefundRow {
+  cancellationId: string;
+  refundStatus: string;
+  refundablePaise: number;
+  actualRefundPaise: number | null;
+  providerRefundReference: string | null;
+  slabLabel: string;
+  processedAt: string | null;
+  booking: { id: string; reference: string | null; contactName: string };
+}
+
+export function ProcessedRefundsList({ rows }: { rows: ProcessedRefundRow[] }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-ink/65">No processed refunds yet.</p>;
+  }
+  return (
+    <ul className="grid gap-3">
+      {rows.map((row) => (
+        <li key={row.cancellationId} className="rounded-[6px] border border-line bg-cream-raised p-4">
+          <Link href={`/admin/bookings/${row.booking.id}`} className="font-medium underline-offset-2 hover:underline">
+            {row.booking.reference ?? row.booking.contactName}
+          </Link>
+          <p className="mt-1 text-sm text-ink/70">
+            {row.slabLabel} · refunded {formatInrPaise(row.actualRefundPaise ?? row.refundablePaise)}
+            {row.processedAt ? ` · ${formatIstDateTime(row.processedAt)}` : ""}
+          </p>
+          <p className="mt-1 text-sm text-ink/70">
+            RRN {row.providerRefundReference ?? "not recorded"}
+          </p>
+        </li>
+      ))}
+    </ul>
   );
 }

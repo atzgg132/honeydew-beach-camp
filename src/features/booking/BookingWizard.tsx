@@ -682,6 +682,19 @@ function ReviewStep({
   );
 }
 
+function payErrorCopy(code: string): string {
+  switch (code) {
+    case "PAID_UNALLOCATED":
+      return "Your payment reached us after the room hold expired. It is recorded and waiting on the camp — do not pay again. The camp will reallocate rooms or refund the amount.";
+    case "HOLD_EXPIRED":
+      return "The room hold expired before payment completed. Start a new search to hold the rooms again. If money left your account, do not pay again — reopen your confirmation page or call the camp.";
+    case "PAYMENT_NOT_CAPTURED":
+      return "The payment has not been captured yet. Wait a minute and try once more from this page — do not start a new booking.";
+    default:
+      return "The payment could not be verified. Try once more from this page; if it repeats, call the camp instead of paying again.";
+  }
+}
+
 function PayStep({
   checkIn,
   checkOut,
@@ -759,6 +772,16 @@ function PayStep({
         const replacement = await quoteBooking({ checkIn, checkOut, composition, rooms }).catch(() => null);
         if (replacement) setAuthoritative(replacement);
         setError("The price changed. Review the updated advance before trying again.");
+        return;
+      }
+      if (
+        caught instanceof BookingApiError &&
+        (caught.code === "PAID_UNALLOCATED" ||
+          caught.code === "HOLD_EXPIRED" ||
+          caught.code === "PAYMENT_NOT_CAPTURED" ||
+          caught.code === "PAYMENT_SIGNATURE_INVALID")
+      ) {
+        setError(payErrorCopy(caught.code));
         return;
       }
       setError(caught instanceof Error ? caught.message : "Could not complete the booking.");

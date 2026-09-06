@@ -2,17 +2,43 @@ import "server-only";
 import { Prisma, RefundStatus } from "@prisma/client";
 import { ApiError } from "@/contracts/errors";
 import { todayIstDate } from "@/lib/dates";
-import type { Booking } from "@/types";
+import type { Booking, PaymentExceptionInfo } from "@/types";
 
 export const customerBookingInclude = {
   rooms: { orderBy: { displayOrder: "asc" as const } },
   cancellation: true,
+  // The guest-visible half of a paid-after-hold-expiry: settlement records the money
+  // as PAID_UNALLOCATED for staff and leaves the booking unconfirmed. Surfacing the
+  // latest such order here lets the guest see their payment is recorded without
+  // changing who may confirm the booking (settlement alone does that).
+  payments: {
+    where: { status: "PAID_UNALLOCATED" },
+    orderBy: { createdAt: "desc" },
+    take: 1,
+    select: { amountPaise: true, currency: true, createdAt: true },
+  },
 } satisfies Prisma.BookingInclude;
 
 type CustomerBookingRecord = Prisma.BookingGetPayload<{ include: typeof customerBookingInclude }>;
 
 const rupees = (paise: number) => paise / 100;
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
+
+/**
+ * Guest-safe view of a paid-after-hold-expiry: amount and time only, never provider
+ * ids. Pure so both the Manage Booking DTO and the checkout status share it.
+ */
+export function toPaymentException(
+  payments: Array<{ amountPaise: number; createdAt: Date }> | undefined | null,
+): PaymentExceptionInfo | undefined {
+  const latest = payments?.[0];
+  if (!latest) return undefined;
+  return {
+    state: "paid_unallocated",
+    amountPaid: latest.amountPaise / 100,
+    paidAt: latest.createdAt?.toISOString() ?? null,
+  };
+}
 
 export function toCustomerBooking(record: CustomerBookingRecord): Booking {
   const checkOut = dateOnly(record.checkOut);
@@ -40,6 +66,8 @@ export function toCustomerBooking(record: CustomerBookingRecord): Booking {
       ? "refunded"
       : "refund_pending_hotel"
     : "balance_due_at_hotel";
+
+  const paymentException = toPaymentException(record.payments);
 
   const pricingRooms = record.rooms.map((room) => ({
     roomGroupId: room.roomGroupId as Booking["rooms"][number]["roomGroupId"],
@@ -96,6 +124,7 @@ export function toCustomerBooking(record: CustomerBookingRecord): Booking {
     },
     advancePaid: rupees(record.advancePaidPaise),
     outstanding: rupees(record.outstandingPaise),
+    ...(paymentException ? { paymentException } : {}),
     ...(record.cancellation
       ? {
           cancellationQuote: {
@@ -112,6 +141,17 @@ export function toCustomerBooking(record: CustomerBookingRecord): Booking {
             charge: rupees(record.cancellation.deductionPaise),
             refundable: rupees(record.cancellation.refundablePaise),
             refundControlledByHotel: true as const,
+            ...(record.cancellation.refundStatus === RefundStatus.PROCESSED
+              ? {
+                  refund: {
+                    actualRefund: rupees(
+                      record.cancellation.actualRefundPaise ?? record.cancellation.refundablePaise,
+                    ),
+                    processedAt: record.cancellation.processedAt?.toISOString() ?? null,
+                    reference: record.cancellation.providerRefundReference ?? null,
+                  },
+                }
+              : {}),
           },
         }
       : {}),

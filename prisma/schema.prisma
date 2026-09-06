@@ -62,6 +62,13 @@ enum BookingEventActor {
   PAYMENT_WEBHOOK
 }
 
+enum NotificationStatus {
+  QUEUED
+  SENDING
+  SENT
+  DEAD_LETTER
+}
+
 model HotelSettings {
   id                   String   @id @default("primary")
   timezone             String
@@ -405,6 +412,45 @@ model AdminSession {
   @@index([adminUserId, expiresAt])
 }
 
+model NotificationOutbox {
+  id String @id @default(uuid()) @db.Uuid
+  channel String @default("email")
+  template String
+  toAddress String
+  subject String
+  bodyText String
+  bodyHtml String?
+  payload Json?
+  bookingId String? @db.Uuid
+  dedupeKey String? @unique
+  status NotificationStatus @default(QUEUED)
+  attempts Int @default(0)
+  maxAttempts Int @default(5)
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(3)
+  lastError String?
+  providerMessageId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  sentAt DateTime? @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  deliveryAttempts NotificationAttempt[]
+
+  @@index([status, nextAttemptAt])
+  @@index([bookingId, createdAt])
+  @@index([template, status])
+}
+
+model NotificationAttempt {
+  id String @id @default(uuid()) @db.Uuid
+  outboxId String @db.Uuid
+  outbox NotificationOutbox @relation(fields: [outboxId], references: [id], onDelete: Cascade)
+  attemptNo Int
+  ok Boolean
+  error String?
+  providerMessageId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([outboxId, attemptNo])
+}
 model RateLimitBucket {
   id            String   @id @default(uuid()) @db.Uuid
   bucketKeyHash String   @db.Char(64)

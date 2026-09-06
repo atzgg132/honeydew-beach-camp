@@ -80,6 +80,14 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
           <p className="mt-2">
             {booking.cancellation.slabLabel}. Deduction <Money paise={booking.cancellation.deductionPaise} />. Refundable{" "}
             <Money paise={booking.cancellation.refundablePaise} />. Status {booking.cancellation.refundStatus.replaceAll("_", " ").toLowerCase()}.
+          {booking.cancellation.refundStatus === "PROCESSED" ? (
+            <>
+              <br />
+              Refunded <Money paise={booking.cancellation.actualRefundPaise ?? booking.cancellation.refundablePaise} />
+              {booking.cancellation.processedAt ? ` on ${formatIstDateTime(booking.cancellation.processedAt)}` : ""}. RRN{" "}
+              {booking.cancellation.providerRefundReference ?? "not recorded"}.
+            </>
+          ) : null}
           </p>
         </section>
       ) : null}

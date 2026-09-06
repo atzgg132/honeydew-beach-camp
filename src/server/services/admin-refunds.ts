@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { ApiError } from "@/contracts/errors";
+import { normalizeRefundReference } from "@/domain/booking/refund-reference";
 import type { AdminActor } from "@/server/auth/admin-session";
 import { db } from "@/server/db/client";
 import { staffBookingInclude, toStaffBooking, toStaffBookingListItem } from "@/server/dto-admin";
@@ -19,6 +20,26 @@ export async function listPendingRefunds() {
     deductionPaise: row.deductionPaise,
     slabLabel: row.slabLabel,
     cancelledAt: row.cancelledAt.toISOString(),
+    booking: toStaffBookingListItem(row.booking),
+  }));
+}
+
+export async function listProcessedRefunds(limit = 50) {
+  const rows = await db().cancellation.findMany({
+    where: { refundStatus: "PROCESSED" },
+    include: { booking: { include: staffBookingInclude } },
+    orderBy: { processedAt: "desc" },
+    take: limit,
+  });
+  return rows.map((row) => ({
+    cancellationId: row.id,
+    refundStatus: row.refundStatus,
+    refundablePaise: row.refundablePaise,
+    actualRefundPaise: row.actualRefundPaise,
+    providerRefundReference: row.providerRefundReference,
+    slabLabel: row.slabLabel,
+    cancelledAt: row.cancelledAt.toISOString(),
+    processedAt: row.processedAt?.toISOString() ?? null,
     booking: toStaffBookingListItem(row.booking),
   }));
 }
@@ -58,6 +79,7 @@ export async function updateRefundStatus(input: {
         throw new ApiError(409, "INVALID_STATE", "Approve the refund before marking it processed.");
       }
       const actual = input.actualRefundPaise;
+      const reference = normalizeRefundReference(input.reference);
       if (actual === undefined || actual < 0 || actual > cancellation.refundablePaise) {
         throw new ApiError(400, "VALIDATION_ERROR", "Enter the amount actually returned, up to the refundable total.");
       }
@@ -66,7 +88,7 @@ export async function updateRefundStatus(input: {
         data: {
           refundStatus: "PROCESSED",
           actualRefundPaise: actual,
-          providerRefundReference: input.reference ?? null,
+          providerRefundReference: reference,
           processedAt: now,
         },
       });

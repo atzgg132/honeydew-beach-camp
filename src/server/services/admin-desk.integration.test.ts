@@ -7,10 +7,10 @@ import { listStaffBookings } from "@/server/services/admin-booking-query";
 import { allocatePaidUnallocated, createStaffBooking, notePaidUnallocatedRefund } from "@/server/services/admin-booking-write";
 import { createRoomBlock, reassignBookingRoom, releaseRoomBlock } from "@/server/services/admin-inventory";
 import { getAdminPricing, publishPolicyRevision, publishTariffRevision } from "@/server/services/admin-config";
-import { listPendingRefunds, recordHotelCollection, updateRefundStatus } from "@/server/services/admin-refunds";
+import { listPendingRefunds, listProcessedRefunds, recordHotelCollection, updateRefundStatus } from "@/server/services/admin-refunds";
 import { dateOnlyToUtc, expireStaleHolds, getAvailabilityForDates } from "@/server/services/availability-service";
 import { createHold } from "@/server/services/checkout-service";
-import { cancelManagedBooking, getCancellationQuote } from "@/server/services/manage-booking-service";
+import { cancelManagedBooking, getCancellationQuote, getManagedBooking } from "@/server/services/manage-booking-service";
 import type { VerifiedPaymentEvent } from "@/server/payments/provider";
 import { settleVerifiedPayment } from "@/server/services/payment-settlement";
 import { createQuote } from "@/server/services/quote-service";
@@ -306,14 +306,35 @@ describe.skipIf(!testDatabaseUrl)("admin desk services", () => {
     const queue = await listPendingRefunds();
     expect(queue.some((row) => row.booking.id === booking.id)).toBe(true);
     await updateRefundStatus({ cancellationId: cancellation.id, actor, action: "approve" });
+    const queuedView = await getManagedBooking(booking.id);
+    expect(queuedView.paymentStatus).toBe("refund_pending_hotel");
+    expect(queuedView.cancellationQuote?.refund).toBeUndefined();
+    await expect(
+      updateRefundStatus({
+        cancellationId: cancellation.id,
+        actor,
+        action: "process",
+        actualRefundPaise: cancellation.refundablePaise,
+        reference: "no",
+      }),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     const processed = await updateRefundStatus({
       cancellationId: cancellation.id,
       actor,
       action: "process",
       actualRefundPaise: cancellation.refundablePaise,
-      reference: "UPI-1",
+      reference: "123456789012",
     });
     expect(processed.cancellation?.refundStatus).toBe("PROCESSED");
+    expect(processed.cancellation?.actualRefundPaise).toBe(cancellation.refundablePaise);
+    expect(processed.cancellation?.providerRefundReference).toBe("123456789012");
+    expect(processed.cancellation?.processedAt).not.toBeNull();
+    const visible = await getManagedBooking(booking.id);
+    expect(visible.paymentStatus).toBe("refunded");
+    expect(visible.cancellationQuote?.refund?.reference).toBe("123456789012");
+    expect(visible.cancellationQuote?.refund?.actualRefund).toBe(cancellation.refundablePaise / 100);
+    const settled = await listProcessedRefunds();
+    expect(settled.some((row) => row.booking.id === booking.id)).toBe(true);
   });
 
   it("does not queue a zero-refund cancellation", async () => {

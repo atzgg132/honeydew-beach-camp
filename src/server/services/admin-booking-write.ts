@@ -22,6 +22,7 @@ import { createQuote, readQuoteToken } from "@/server/services/quote-service";
 import { allocateReference } from "@/server/services/reference";
 import { withSerializableRetry } from "@/server/services/serializable";
 import { sha256 } from "@/server/crypto";
+import { notifyBookingConfirmed } from "@/server/notifications/notify";
 
 function hotelOrderIds() {
   const id = randomUUID();
@@ -171,6 +172,9 @@ export async function createStaffBooking(input: {
             expiresAt: new Date(now.getTime() + 24 * 60 * 60_000),
           },
         });
+        // Hotel-collected payment changes no hands online, so there is no receipt to
+            // send — the confirmation and the staff alert are enough.
+        await notifyBookingConfirmed(transaction, { bookingId });
         const record = await transaction.booking.findUniqueOrThrow({
           where: { id: bookingId },
           include: staffBookingInclude,
@@ -300,6 +304,10 @@ export async function allocatePaidUnallocated(bookingId: string, actor: AdminAct
               },
             },
           },
+        });
+        await notifyBookingConfirmed(transaction, {
+          bookingId,
+          receipt: { orderId: order.id, amountPaise: order.amountPaise, paidAt: now },
         });
         return toStaffBooking(await transaction.booking.findUniqueOrThrow({ where: { id: bookingId }, include: staffBookingInclude }));
       },

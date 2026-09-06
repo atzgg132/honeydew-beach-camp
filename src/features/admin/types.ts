@@ -84,6 +84,7 @@ export interface StaffBooking {
     actualRefundPaise: number | null;
     providerRefundReference: string | null;
     cancelledAt: string;
+    processedAt: string | null;
   } | null;
   events: Array<{
     id: string;

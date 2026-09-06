@@ -8,9 +8,10 @@ import { priceBookingPaise } from "@/domain/booking/pricing";
 import { canTransition } from "@/domain/booking/state-machine";
 import { distributeGuests } from "@/lib/booking/distribute";
 import { istDateTime } from "@/lib/dates";
-import { last10Digits } from "@/lib/format";
+import { formatInrPaise, last10Digits } from "@/lib/format";
 import { phoneLookupHash, sha256, signPayload, verifyPayload } from "@/server/crypto";
 import { db } from "@/server/db/client";
+import { notifyBookingAmended, notifyBookingCancelled } from "@/server/notifications/notify";
 import { customerBookingInclude, toCustomerBooking } from "@/server/dto";
 import { isRoomFree, lockRoomsForGroups } from "@/server/services/allocation";
 import { loadTariffRevision } from "@/server/services/booking-config-service";
@@ -243,6 +244,16 @@ export async function applyGuestChange(
         events: { create: { type: "GUESTS_CHANGED", ...actorFields(actor), idempotencyKey, deltaPaise: price.subtotalPaise - record.subtotalPaise, data: { beforeTotalPaise: record.subtotalPaise, afterTotalPaise: price.subtotalPaise, requestHash } } },
       },
     });
+    await notifyBookingAmended(transaction, {
+      bookingId,
+      idempotencyKey,
+      actor: actor.kind === "admin" ? "desk staff" : "guest",
+      changeKind: "Guest change",
+      summaryLines: [
+        `Guests now: ${composition.adults} adults, ${composition.childrenUnder5} under 5, ${composition.children5to10} aged 5 to 10.`,
+        `Revised stay total: ${formatInrPaise(price.subtotalPaise)} (was ${formatInrPaise(record.subtotalPaise)}).`,
+      ],
+    });
     return toCustomerBooking(await transaction.booking.findUniqueOrThrow({ where: { id: bookingId }, include: customerBookingInclude }));
   });
 }
@@ -357,6 +368,16 @@ export async function applyAcUpgrade(
         events: { create: { type: "AC_UPGRADED", ...actorFields(actor), idempotencyKey, deltaPaise, data: { roomId, beforeTotalPaise: booking.subtotalPaise, afterTotalPaise: price.subtotalPaise, requestHash } } },
       },
     });
+    await notifyBookingAmended(transaction, {
+      bookingId,
+      idempotencyKey,
+      actor: actor.kind === "admin" ? "desk staff" : "guest",
+      changeKind: "Room upgrade",
+      summaryLines: [
+        "A room was upgraded to air-conditioning.",
+        `Revised stay total: ${formatInrPaise(price.subtotalPaise)} (was ${formatInrPaise(booking.subtotalPaise)}).`,
+      ],
+    });
     return toCustomerBooking(await transaction.booking.findUniqueOrThrow({ where: { id: bookingId }, include: customerBookingInclude }));
   });
 }
@@ -425,6 +446,11 @@ export async function cancelManagedBooking(
         outstandingPaise: 0,
         events: { create: { type: "BOOKING_CANCELLED", ...actorFields(actor), idempotencyKey, data: { slabId: quote.slabId, deductionPaise: quote.deductionPaise, refundablePaise: quote.refundablePaise } } },
       },
+    });
+    await notifyBookingCancelled(transaction, {
+      bookingId,
+      idempotencyKey,
+      actor: actor.kind === "admin" ? "desk staff" : "guest",
     });
     return toCustomerBooking(await transaction.booking.findUniqueOrThrow({ where: { id: bookingId }, include: customerBookingInclude }));
   });
