@@ -47,9 +47,9 @@ Staff alerts to `STAFF_ALERT_EMAIL`:
 ## Configuration
 
 See `docs/environment-variables.md` (Notifications) and blocker B3. `EMAIL_PROVIDER`
-is `resend` or `console` (default). `console` writes messages to the structured log
-instead of sending and needs no credentials. `resend` requires `RESEND_API_KEY` and
-`NOTIFICATION_FROM_EMAIL` on a verified domain; without them the delivery run fails
+is `smtp` or `console` (default). `console` writes messages to the structured log
+instead of sending and needs no credentials. `smtp` sends through Gmail by default
+and needs `SMTP_USER` plus a Gmail App Password in `SMTP_PASS`; without them the delivery run fails
 loudly and messages stay queued. `STAFF_ALERT_EMAIL` unset means staff alerts are
 skipped (guest mail still queues).
 
@@ -61,7 +61,7 @@ skipped (guest mail still queues).
 - **Retry:** `POST /api/admin/notifications/{id}/retry` (or the button on a
   dead-lettered row) re-queues a message with a fresh attempt cycle.
 - **No real mail in tests:** suites use the `console` provider or an injected fake.
-  Never set `EMAIL_PROVIDER=resend` with a live key outside production.
+  Never set real SMTP credentials outside production.
 - **Scheduler:** until blocker B7 is resolved, trigger delivery by POSTing the
   internal endpoint with the `CRON_SECRET` bearer on the chosen cadence (every few
   minutes; backoff already spaces retries).

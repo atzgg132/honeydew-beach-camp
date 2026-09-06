@@ -336,6 +336,7 @@ model Cancellation {
   refundStatus            RefundStatus
   actualRefundPaise       Int?
   providerRefundReference String?
+  otpChallenges           RefundOtpChallenge[]
   cancelledAt             DateTime     @db.Timestamptz(3)
   approvedAt              DateTime?    @db.Timestamptz(3)
   processedAt             DateTime?    @db.Timestamptz(3)
@@ -451,6 +452,21 @@ model NotificationAttempt {
 
   @@index([outboxId, attemptNo])
 }
+model RefundOtpChallenge {
+  id               String       @id @default(uuid()) @db.Uuid
+  cancellationId   String       @db.Uuid
+  cancellation     Cancellation @relation(fields: [cancellationId], references: [id], onDelete: Cascade)
+  otpHash          String       @db.Char(64)
+  expiresAt        DateTime     @db.Timestamptz(3)
+  attempts         Int          @default(0)
+  maxAttempts      Int          @default(5)
+  consumedAt       DateTime?    @db.Timestamptz(3)
+  createdByAdminId String?
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@index([cancellationId, createdAt])
+}
+
 model RateLimitBucket {
   id            String   @id @default(uuid()) @db.Uuid
   bucketKeyHash String   @db.Char(64)

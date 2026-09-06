@@ -16,6 +16,7 @@ export function RefundsList({
     refundablePaise: number;
     slabLabel: string;
     booking: { id: string; reference: string | null; contactName: string };
+    autoRefund: { eligible: boolean; capturedPaise: number };
   }>;
 }) {
   const { error, message, pending, wrap } = useAdminAction();
@@ -41,6 +42,7 @@ export function RefundsList({
                 refundStatus={row.refundStatus}
                 refundablePaise={row.refundablePaise}
                 slabLabel={row.slabLabel}
+                autoRefund={row.autoRefund}
                 pending={pending}
                 onRun={(action, success) => void wrap(action, success)}
               />

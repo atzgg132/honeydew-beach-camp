@@ -33,3 +33,25 @@ calls the same settlement function. The simulator route returns 404 in productio
 
 See `docs/environment-variables.md` and blocker **B2**. Test cards are listed in the Razorpay
 docs; never commit live keys.
+
+## Automated refunds
+
+An approved refund on a booking with a captured Razorpay payment can be paid to
+source from the desk refunds queue. Every online refund needs two steps:
+
+1. **Send approval code** — the desk requests a 6-digit code, mailed to
+   `REFUND_OTP_EMAIL` (default `kuheli.mazumdar@gmail.com`). The code expires
+   in 10 minutes, works once, and is stored as a hash. Five code requests per
+   15 minutes per refund, five wrong attempts per code.
+2. **Confirm online refund** — staff enter the code and the amount. The server
+   consumes the code and claims the refund (`APPROVED` → `PROCESSING`) in one
+   transaction, then calls `POST /v1/payments/:id/refund` with
+   `speed: "normal"` and the cancellation id as `receipt`, so a retry after a
+   lost response reuses the existing refund instead of paying twice.
+
+A synchronous `processed` response marks the refund `PROCESSED` with the
+`rfnd_…` id as the reference and queues the guest mail. A `pending` response
+stays `PROCESSING` until the webhook (`refund.processed` / `refund.failed`,
+same signature check as payments) reconciles it; a failure re-queues the
+refund as `APPROVED` and raises a staff alert. Refunds without a captured
+online payment keep the manual out-of-band path.

@@ -89,6 +89,63 @@ function mapRazorpayError(error: unknown, fallback: string): never {
   throw new ApiError(500, "PAYMENT_PROVIDER_ERROR", fallback);
 }
 
+/**
+ * Shared webhook authentication: verifies the HMAC signature over the raw body
+ * and returns the parsed payload. Every webhook entry point uses this, so an
+ * unverified call never reaches payment or refund reconciliation.
+ */
+function verifyRazorpaySignature(rawBody: Uint8Array, headers: Headers): RazorpayWebhookBody {
+  const secret = razorpayWebhookSecret();
+  if (!secret) {
+    throw new ApiError(404, "PAYMENT_PROVIDER_NOT_CONFIGURED", "Payment provider razorpay is not configured.");
+  }
+  const signature = headers.get("x-razorpay-signature")?.trim();
+  if (!signature) {
+    throw new ApiError(400, "WEBHOOK_SIGNATURE_INVALID", "The webhook signature is missing.");
+  }
+  const raw = Buffer.from(rawBody).toString("utf8");
+  const expected = createHmac("sha256", secret).update(raw).digest("hex");
+  if (!signaturesMatch(expected, signature)) {
+    reportError({
+      kind: "payment.webhook_unverified",
+      message: "Razorpay webhook signature mismatch",
+      context: { providerName: PROVIDER },
+    });
+    throw new ApiError(400, "WEBHOOK_SIGNATURE_INVALID", "The webhook signature is invalid.");
+  }
+  try {
+    return JSON.parse(raw) as RazorpayWebhookBody;
+  } catch {
+    throw new ApiError(400, "VALIDATION_ERROR", "The webhook body must be valid JSON.");
+  }
+}
+
+export interface VerifiedRefundEvent {
+  refundId: string;
+  paymentId: string;
+  amountPaise: number;
+  status: string;
+}
+
+/**
+ * Verify a `refund.processed` / `refund.failed` webhook event. Anything else
+ * (including payment events, which have their own verifier) is IGNORED so the
+ * route can answer 200 without retry storms.
+ */
+export function verifyRefundWebhook(input: { rawBody: Uint8Array; headers: Headers }): VerifiedRefundEvent {
+  const body = verifyRazorpaySignature(input.rawBody, input.headers);
+  const eventType = body.event ?? "";
+  const refund = body.payload?.refund?.entity;
+  if (!refund?.id || !refund.payment_id || (eventType !== "refund.processed" && eventType !== "refund.failed")) {
+    throw new ApiError(400, "WEBHOOK_EVENT_IGNORED", "This webhook event is not a refund update.");
+  }
+  const amountPaise = typeof refund.amount === "string" ? Number(refund.amount) : refund.amount;
+  if (typeof amountPaise !== "number" || !Number.isInteger(amountPaise)) {
+    throw new ApiError(400, "WEBHOOK_EVENT_IGNORED", "This webhook event carries no usable refund amount.");
+  }
+  return { refundId: refund.id, paymentId: refund.payment_id, amountPaise, status: refund.status ?? eventType };
+}
+
 export const razorpayPaymentProvider: PaymentProvider = {
   async createOrder(input): Promise<ProviderOrder> {
     if (input.amountPaise < MIN_AMOUNT_PAISE) {
@@ -133,31 +190,7 @@ export const razorpayPaymentProvider: PaymentProvider = {
   },
 
   async verifyWebhook(input): Promise<VerifiedPaymentEvent> {
-    const secret = razorpayWebhookSecret();
-    if (!secret) {
-      throw new ApiError(404, "PAYMENT_PROVIDER_NOT_CONFIGURED", "Payment provider razorpay is not configured.");
-    }
-    const signature = input.headers.get("x-razorpay-signature")?.trim();
-    if (!signature) {
-      throw new ApiError(400, "WEBHOOK_SIGNATURE_INVALID", "The webhook signature is missing.");
-    }
-    const raw = Buffer.from(input.rawBody).toString("utf8");
-    const expected = createHmac("sha256", secret).update(raw).digest("hex");
-    if (!signaturesMatch(expected, signature)) {
-      reportError({
-        kind: "payment.webhook_unverified",
-        message: "Razorpay webhook signature mismatch",
-        context: { providerName: PROVIDER },
-      });
-      throw new ApiError(400, "WEBHOOK_SIGNATURE_INVALID", "The webhook signature is invalid.");
-    }
-
-    let body: RazorpayWebhookBody;
-    try {
-      body = JSON.parse(raw) as RazorpayWebhookBody;
-    } catch {
-      throw new ApiError(400, "VALIDATION_ERROR", "The webhook body must be valid JSON.");
-    }
+    const body = verifyRazorpaySignature(input.rawBody, input.headers);
 
     const payment = body.payload?.payment?.entity;
     const eventType = body.event ?? "";
@@ -236,6 +269,14 @@ interface RazorpayWebhookBody {
         amount?: number | string;
         currency?: string;
         created_at?: number;
+      };
+    };
+    refund?: {
+      entity?: {
+        id?: string;
+        payment_id?: string;
+        amount?: number | string;
+        status?: string;
       };
     };
   };

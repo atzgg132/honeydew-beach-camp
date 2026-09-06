@@ -26,7 +26,7 @@ Staff sessions last 12 hours. Sign out from the sidebar or the mobile More menu.
 - **New booking** — phone or walk-in. Same pricing and room allocation as the website. Confirm immediately and record cash collected now (including zero).
 - **Rooms** — 14-day grid. Reassign from a booking. Block a room for a date range; blocked dates disappear from customer availability. Click a block cell to release it.
 - **Pricing** — publish a new tariff revision or advance percentage. Changes apply to future quotes only. Historical bookings keep their snapshots. Marketing pages still show the seeded revision-1 card until that copy is updated separately.
-- **Refunds** — queued cancellations. Approve or reject, then mark processed with the amount actually returned. The site does not pay the guest automatically.
+- **Refunds** — queued cancellations. Approve or reject, then either refund online via Razorpay (needs the emailed approval code) or mark processed with the amount actually returned out of band.
 
 ## Rules the desk must not bypass
 

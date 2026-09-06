@@ -48,9 +48,10 @@ Status legend: `OPEN` · `PARTIAL` (code ready, credential outstanding) · `RESO
   - `RAZORPAY_KEY_SECRET` — the Key Secret. Server-only.
   - `NEXT_PUBLIC_RAZORPAY_KEY_ID` — the same Key ID, for the checkout modal
   - `PAYMENT_WEBHOOK_SECRET` — the webhook secret used to verify `X-Razorpay-Signature`
+  - `REFUND_OTP_EMAIL` — inbox that approves automated refunds (defaults to `kuheli.mazumdar@gmail.com`; no dashboard work, just access to that inbox)
 - **Dashboard action:** Razorpay Dashboard → Account & Settings → API Keys (start with **test** keys).
   Then Developers → Webhooks → add `https://<site>/api/payments/webhook/razorpay` and subscribe to
-  `payment.captured` and `order.paid`.
+  `payment.captured`, `order.paid`, `refund.processed`, and `refund.failed` (refund events reconcile automated refunds).
 - **Testable beforehand:** test-mode Standard Checkout against the test keys, plus the development
   simulator (`ENABLE_DEV_PAYMENT=true`, `PAYMENT_PROVIDER=dev`) used by CI. Settlement, amount
   checks, replay protection, and the paid-after-hold-expiry path are shared with the simulator.
@@ -61,20 +62,20 @@ Status legend: `OPEN` · `PARTIAL` (code ready, credential outstanding) · `RESO
 
 ---
 
-## B3 — Resend account and sending-domain DNS
+## B3 — Gmail SMTP sender (App Password)
 
 - **Status:** OPEN
 - **Priority:** 3 — blocks real email delivery; the outbox queues and retries without it
 - **Why:** Booking confirmations, payment receipts, amendment and cancellation notices, and staff alerts
-  need a verified sending domain or they will land in spam.
-- **Who:** Repository owner (Resend account plus DNS access for the sending domain).
-- **Environment variables:** `EMAIL_PROVIDER` (`resend` | `console`), `RESEND_API_KEY`,
+  send from the camp Gmail address. No paid account or domain DNS is needed at this volume.
+- **Who:** Repository owner (sign-in access to the honeydewbeachcamp@gmail.com Google account).
+- **Environment variables:** `EMAIL_PROVIDER` (`smtp` | `console`), `SMTP_USER`, `SMTP_PASS`,
   `NOTIFICATION_FROM_EMAIL`, `NOTIFICATION_REPLY_TO_EMAIL`, `STAFF_ALERT_EMAIL`.
-- **DNS action:** Resend dashboard → Domains → add the sending domain, then create the SPF (`TXT`),
-  DKIM (`TXT`), and return-path records it displays, at the domain registrar. Wait for verification.
+- **DNS action:** Google Account → Security → 2-Step Verification ON, then App passwords → create one
+  named "Honeydew website" and copy the 16-character password into `SMTP_PASS` (spaces do not matter).
 - **Testable beforehand:** all notification content, routing, retry, deduplication, delivery history and
   dead-lettering are testable with the `console` and `file` adapters.
-- **Afterwards:** set `EMAIL_PROVIDER=resend` in Vercel, redeploy, and send one test booking confirmation
+- **Afterwards:** set `EMAIL_PROVIDER=smtp` plus the SMTP variables in Vercel, redeploy, and send one test booking confirmation
   to an owner-controlled address.
 
 ---

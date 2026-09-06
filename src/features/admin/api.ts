@@ -223,6 +223,24 @@ export async function adminRefundAction(
   }, true);
 }
 
+export async function adminRequestRefundOtp(cancellationId: string) {
+  return api<{ challengeId: string; expiresAt: string }>(`/api/admin/cancellations/${cancellationId}/refund-otp`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, true);
+}
+
+export async function adminExecuteOnlineRefund(
+  cancellationId: string,
+  body: { challengeId: string; otp: string; actualRefundPaise: number },
+) {
+  return api<{ booking: StaffBooking; refundId: string; status: string }>(
+    `/api/admin/cancellations/${cancellationId}/refund-execute`,
+    { method: "POST", body: JSON.stringify(body) },
+    true,
+  );
+}
+
 export async function adminRetryNotification(id: string) {
   return api<{ id: string; status: string }>(`/api/admin/notifications/${id}/retry`, { method: "POST" }, true);
 }

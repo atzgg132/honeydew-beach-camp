@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["razorpay"],
+  serverExternalPackages: ["razorpay", "nodemailer"],
   async headers() {
     return [
       {

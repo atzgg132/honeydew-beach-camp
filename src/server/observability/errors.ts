@@ -30,6 +30,8 @@ export type AlertKind =
   | "payment.webhook_unverified"
   /** Local payment state disagrees with the provider's. */
   | "payment.reconciliation_mismatch"
+  /** A provider refund failed after the guest was told it was coming. Needs staff follow-up. */
+  | "payment.refund_failed"
   /** A notification exhausted its retries and will not be delivered without intervention. */
   | "notification.dead_letter"
   /** A scheduled job failed. Holds stop being released and messages stop going out. */

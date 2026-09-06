@@ -8,6 +8,14 @@ import {
   REFUND_REFERENCE_PATTERN,
 } from "@/domain/booking/refund-reference";
 
+export const refundOtpRequestContract = z.object({});
+
+export const refundExecuteContract = z.object({
+  challengeId: z.string().uuid("The approval challenge is not valid."),
+  otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit approval code."),
+  actualRefundPaise: z.number().int().min(1, "Enter a refund amount greater than zero."),
+});
+
 export const adminLoginContract = z.object({
   email: z.string().trim().email().max(254),
   password: z.string().min(1).max(200),

@@ -148,13 +148,13 @@ describe("notification provider resolution", () => {
     vi.unstubAllEnvs();
   });
 
-  it("defaults to the console provider and never to resend", () => {
+  it("defaults to the console provider and never to smtp", () => {
     vi.stubEnv("EMAIL_PROVIDER", "");
     expect(emailProviderName()).toBe("console");
     vi.stubEnv("EMAIL_PROVIDER", "whatsapp");
     expect(emailProviderName()).toBe("console");
-    vi.stubEnv("EMAIL_PROVIDER", "resend");
-    expect(emailProviderName()).toBe("resend");
+    vi.stubEnv("EMAIL_PROVIDER", "smtp");
+    expect(emailProviderName()).toBe("smtp");
   });
 
   it("reads the staff alert address only when configured", () => {

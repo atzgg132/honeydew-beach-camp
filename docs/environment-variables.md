@@ -68,11 +68,16 @@ See blocker **B2**. Test keys enable sandbox checkout. Live keys and a webhook s
 
 | Name | Required | Purpose |
 |---|---|---|
-| `EMAIL_PROVIDER` | runtime | `resend` or `console`. `console` writes messages to the log instead of sending. |
-| `RESEND_API_KEY` | runtime | Resend API key. |
-| `NOTIFICATION_FROM_EMAIL` | runtime | Sender address on a verified domain. |
+| `EMAIL_PROVIDER` | runtime | `smtp` or `console`. `console` writes messages to the log instead of sending. |
+| `SMTP_HOST` | runtime | SMTP host. Defaults to `smtp.gmail.com`. |
+| `SMTP_PORT` | runtime | SMTP port. Defaults to `465`. Use `587` for STARTTLS. |
+| `SMTP_SECURE` | optional | Force (`true`) or disable (`false`) implicit TLS. Defaults to true on port 465. |
+| `SMTP_USER` | runtime | SMTP username — the Gmail address sending the mail. |
+| `SMTP_PASS` | runtime | SMTP password — a Gmail App Password (spaces are stripped, so a pasted value works). |
+| `NOTIFICATION_FROM_EMAIL` | runtime | Sender address. Defaults to the Gmail sender. Must match `SMTP_USER` or a verified Send-As alias. |
 | `NOTIFICATION_REPLY_TO_EMAIL` | optional | Reply-to address, typically the camp inbox. |
 | `STAFF_ALERT_EMAIL` | runtime | Where payment and delivery exception alerts go. |
+| `REFUND_OTP_EMAIL` | runtime | Inbox that receives the one-time approval code for automated refunds. Defaults to `kuheli.mazumdar@gmail.com`. |
 
 See blocker **B3**. WhatsApp variables are listed under blocker **B8** and are not read yet.
 
