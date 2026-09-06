@@ -1,0 +1,32 @@
+name: Scheduled tasks
+
+on:
+  schedule:
+    # Vercel Hobby allows two daily crons only, which cannot service 15-minute
+    # holds or timely mail delivery. This workflow is the scheduler instead:
+    # every five minutes it calls the authenticated internal endpoints.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: scheduled-tasks
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: Expire holds and deliver mail
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      CRON_TARGET_URL: ${{ secrets.CRON_TARGET_URL }}
+    steps:
+      - name: Expire stale holds
+        run: |
+          curl -fsS -X POST "$CRON_TARGET_URL/api/internal/holds/expire" \
+            -H "Authorization: Bearer $CRON_SECRET"
+
+      - name: Deliver queued notifications
+        run: |
+          curl -fsS -X POST "$CRON_TARGET_URL/api/internal/notifications/deliver" \
+            -H "Authorization: Bearer $CRON_SECRET"
