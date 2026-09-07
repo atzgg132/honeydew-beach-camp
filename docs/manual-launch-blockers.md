@@ -14,9 +14,9 @@ Status legend: `OPEN` · `PARTIAL` (code ready, credential outstanding) · `RESO
 
 ---
 
-## B1 — Rotate the Neon database credential
+## B1 — Rotate the Neon database credential (RESOLVED 2026-09-06)
 
-- **Status:** OPEN
+- **Status:** RESOLVED — password rotated via the Neon API on 2026-09-06; `prelaunch-backup` branch retained
 - **Priority:** 1 — blocks final production acceptance
 - **Why:** The Neon password was previously pasted into a conversation and must be treated as disclosed.
 - **Who:** Repository owner (Neon console access).
@@ -64,7 +64,7 @@ Status legend: `OPEN` · `PARTIAL` (code ready, credential outstanding) · `RESO
 
 ## B3 — Gmail SMTP sender (App Password)
 
-- **Status:** OPEN
+- **Status:** PARTIAL — Gmail SMTP proven 2026-09-06 (test mail delivered); booking-confirmation mail awaits the live booking
 - **Priority:** 3 — blocks real email delivery; the outbox queues and retries without it
 - **Why:** Booking confirmations, payment receipts, amendment and cancellation notices, and staff alerts
   send from the camp Gmail address. No paid account or domain DNS is needed at this volume.
@@ -158,7 +158,7 @@ Status legend: `OPEN` · `PARTIAL` (code ready, credential outstanding) · `RESO
 
 ## B9 — Backup restore drill
 
-- **Status:** OPEN
+- **Status:** RESOLVED — drill executed 2026-09-06, see `docs/backup-and-restore.md`
 - **Priority:** 3 — a backup that has never been restored is not a backup
 - **Why:** The restore procedure must be proven, not asserted.
 - **Who:** Repository owner or engineer, jointly — requires Neon branch or restore permissions.
